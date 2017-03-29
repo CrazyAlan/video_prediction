@@ -34,18 +34,18 @@ VAL_INTERVAL = 200
 SAVE_INTERVAL = 2000
 
 # tf record data location:
-DATA_DIR = 'push/push_train'
+DATA_DIR = './push/push_train'
 
 # local output directory
-OUT_DIR = '/tmp/data'
+OUT_DIR = './checkpoints'
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('data_dir', DATA_DIR, 'directory containing data.')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
-flags.DEFINE_string('event_log_dir', OUT_DIR, 'directory for writing summary.')
+flags.DEFINE_string('event_log_dir', './summaries', 'directory for writing summary.')
 flags.DEFINE_integer('num_iterations', 100000, 'number of training iterations.')
-flags.DEFINE_string('pretrained_model', '',
+flags.DEFINE_string('pretrained_model', '' ,
                     'filepath of a pretrained model to initialize from.')
 
 flags.DEFINE_integer('sequence_length', 10,
@@ -198,6 +198,8 @@ class Model(object):
 
 
 def main(unused_argv):
+  tf.logging.set_verbosity(tf.logging.INFO)
+
   with tf.Graph().as_default():
     print('Constructing models and inputs.')
     with tf.variable_scope('model', reuse=None) as training_scope:
@@ -228,8 +230,10 @@ def main(unused_argv):
 
     tf.logging.info('iteration number, cost')
 
+    print('Start Tranning')
     # Run training.
     for itr in range(FLAGS.num_iterations):
+      # print('In iteration ', itr)
       # Generate new batch of data.
       feed_dict = {model.prefix: 'train',
                    model.iter_num: np.float32(itr),
@@ -238,8 +242,8 @@ def main(unused_argv):
                                       feed_dict)
 
       # Print info: iteration #, cost.
-      tf.logging.info(str(itr) + ' ' + str(cost))
-
+      tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost))
+      
       if (itr) % VAL_INTERVAL == 2:
         # Run through validation set.
         feed_dict = {val_model.lr: 0.0,
