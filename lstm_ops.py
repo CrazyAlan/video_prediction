@@ -38,15 +38,18 @@ def init_state(inputs,
   if inputs is not None:
     # Handle both the dynamic shape as well as the inferred shape.
     inferred_batch_size = inputs.get_shape().with_rank_at_least(1)[0]
-    batch_size = tf.shape(inputs)[0]
+    # batch_size = tf.shape(inputs)[0]
+    batch_size = inputs.get_shape().as_list()[0]
+
     dtype = inputs.dtype
   else:
     inferred_batch_size = 0
     batch_size = 0
 
-  initial_state = state_initializer(
-      tf.stack([batch_size] + state_shape),
-      dtype=dtype)
+  batch_size = tf.to_int32(batch_size)
+  
+  initial_state=tf.Variable(tf.zeros(tf.stack([batch_size] + state_shape)))
+
   initial_state.set_shape([inferred_batch_size] + state_shape)
 
   return initial_state
@@ -89,7 +92,7 @@ def basic_conv_lstm_cell(inputs,
                          reuse=reuse):
     inputs.get_shape().assert_has_rank(4)
     state.get_shape().assert_has_rank(4)
-    c, h = tf.split(axis=3, num_or_size_splits=2, value=state)
+    c, h = tf.split(state, 2 , 3)
     inputs_h = tf.concat(axis=3, values=[inputs, h])
     # Parameters of gates are concatenated into one conv for efficiency.
     i_j_f_o = layers.conv2d(inputs_h,
@@ -99,7 +102,7 @@ def basic_conv_lstm_cell(inputs,
                             scope='Gates')
 
     # i = input_gate, j = new_input, f = forget_gate, o = output_gate
-    i, j, f, o = tf.split(axis=3, num_or_size_splits=4, value=i_j_f_o)
+    i, j, f, o = tf.split(i_j_f_o, 4, 3)
 
     new_c = c * tf.sigmoid(f + forget_bias) + tf.sigmoid(i) * tf.tanh(j)
     new_h = tf.tanh(new_c) * tf.sigmoid(o)

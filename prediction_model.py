@@ -207,7 +207,7 @@ def construct_model(images,
       masks = tf.reshape(
           tf.nn.softmax(tf.reshape(masks, [-1, num_masks + 1])),
           [int(batch_size), int(img_height), int(img_width), num_masks + 1])
-      mask_list = tf.split(axis=3, num_or_size_splits=num_masks + 1, value=masks)
+      mask_list = tf.split(masks, num_masks + 1, 3)
       output = mask_list[0] * prev_image
       for layer, mask in zip(transformed, mask_list[1:]):
         output += layer * mask
@@ -277,8 +277,8 @@ def cdna_transformation(prev_image, cdna_input, num_masks, color_channels):
   cdna_kerns /= norm_factor
 
   cdna_kerns = tf.tile(cdna_kerns, [1, 1, 1, color_channels, 1])
-  cdna_kerns = tf.split(axis=0, num_or_size_splits=batch_size, value=cdna_kerns)
-  prev_images = tf.split(axis=0, num_or_size_splits=batch_size, value=prev_image)
+  cdna_kerns = tf.split(cdna_kerns, batch_size, 0)
+  prev_images = tf.split(prev_image , batch_size, 0)
 
   # Transform image.
   transformed = []
@@ -289,7 +289,7 @@ def cdna_transformation(prev_image, cdna_input, num_masks, color_channels):
     transformed.append(
         tf.nn.depthwise_conv2d(preimg, kernel, [1, 1, 1, 1], 'SAME'))
   transformed = tf.concat(axis=0, values=transformed)
-  transformed = tf.split(axis=3, num_or_size_splits=num_masks, value=transformed)
+  transformed = tf.split(transformed,  num_masks,  3)
   return transformed
 
 
