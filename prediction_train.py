@@ -284,13 +284,11 @@ def main(unused_argv):
                                        feed_dict)
         summary_writer.add_summary(val_summary_str, itr)
         # Output a gif file 
-        gen_images = np.asarray(gen_images)
-        images = np.asarray(images)
-        gen_images = np.transpose(gen_images, (1,0,2,3,4))
-        images = np.transpose(images, (1,0,2,3,4))
-
-        npy_to_gif(gen_images[0]*255, '/cs/vml4/xca64/robot_data/gif/gen_' + str(itr) + '.gif')
-        npy_to_gif(images[0]*255, '/cs/vml4/xca64/robot_data/gif/org_' + str(itr) + '.gif')
+        gen_images = np.transpose(np.asarray(gen_images), (1,0,2,3,4))
+        images = np.transpose(np.asarray(images), (1,0,2,3,4))
+        for i in range(batch_size):        
+          npy_to_gif(gen_images[i]*255, '/cs/vml4/xca64/robot_data/gif/gen_' + str(i) + '.gif')
+          npy_to_gif(images[i]*255, '/cs/vml4/xca64/robot_data/gif/org_' + str(i) + '.gif')
 
       if (itr) % SAVE_INTERVAL == 2:
         tf.logging.info('Saving model.')
