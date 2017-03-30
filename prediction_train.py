@@ -16,13 +16,15 @@
 """Code for training the prediction model."""
 
 import numpy as np
+from datetime import datetime
 import tensorflow as tf
+import os
 
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
-from prediction_input import build_tfrecord_input
-from prediction_model import construct_model
+from data.prediction_input import build_tfrecord_input
+from model.prediction_model import construct_model
 
 # How often to record tensorboard summaries.
 SUMMARY_INTERVAL = 40
@@ -34,16 +36,19 @@ VAL_INTERVAL = 200
 SAVE_INTERVAL = 2000
 
 # tf record data location:
-DATA_DIR = '/cs/vml4/xca64/robot_data/push//push_train'
+DATA_DIR = '/cs/vml4/xca64/robot_data/push/push_train'
 
 # local output directory
 OUT_DIR = '/cs/vml4/xca64/robot_data/checkpoints'
+
+# summary output dir
+SUM_DIR = '/cs/vml4/xca64/robot_data/summaries'
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('data_dir', DATA_DIR, 'directory containing data.')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
-flags.DEFINE_string('event_log_dir',OUT_DIR+'/summaries', 'directory for writing summary.')
+flags.DEFINE_string('event_log_dir',SUM_DIR, 'directory for writing summary.')
 flags.DEFINE_integer('num_iterations', 100000, 'number of training iterations.')
 flags.DEFINE_string('pretrained_model', '' ,
                     'filepath of a pretrained model to initialize from.')
@@ -71,6 +76,7 @@ flags.DEFINE_float('learning_rate', 0.001,
                    'the base learning rate of the generator')
 
 
+
 ## Helper functions
 def peak_signal_to_noise_ratio(true, pred):
   """Image quality metric based on maximal signal power vs. power of the noise.
@@ -95,6 +101,10 @@ def mean_squared_error(true, pred):
   """
   return tf.reduce_sum(tf.square(true - pred)) / tf.to_float(tf.size(pred))
 
+import moviepy.editor as mpy
+def npy_to_gif(npy, filename):
+     clip = mpy.ImageSequenceClip(list(npy), fps=10)
+     clip.write_gif(filename)
 
 class Model(object):
 
@@ -163,6 +173,7 @@ class Model(object):
        else:
            prefixs='val'
 
+    print('Prefix is', prefixs)
     for i, x, gx in zip(
         range(len(gen_images)), images[FLAGS.context_frames:],
         gen_images[FLAGS.context_frames - 1:]):
@@ -191,11 +202,18 @@ class Model(object):
 
     summaries.append(tf.summary.scalar(prefixs + '_loss', loss))
 
+    # Add image to summary
+
+    summaries.append(tf.summary.image(prefixs + '_gen', gen_images[0], max_outputs=3))    
+    summaries.append(tf.summary.image(prefixs + '_org', images[0], max_outputs=3))
+
     self.lr = tf.placeholder_with_default(FLAGS.learning_rate, ())
 
     self.train_op = tf.train.AdamOptimizer(self.lr).minimize(loss)
     self.summ_op = tf.summary.merge(summaries)
 
+    self.gen_images = gen_images
+    self.images = images
 
 def main(unused_argv):
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -215,6 +233,9 @@ def main(unused_argv):
     # Make saver.
     saver = tf.train.Saver(
         tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES), max_to_keep=0)
+    saver_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), datetime.now().strftime('%Y-%m-%d-%H%M%S'))
+    if not os.path.isdir(saver_dir):
+      os.mkdir(saver_dir)
 
     # Make training session.
     # sess = tf.InteractiveSession()
@@ -222,13 +243,23 @@ def main(unused_argv):
     summary_writer = tf.summary.FileWriter(
         FLAGS.event_log_dir, graph=sess.graph, flush_secs=10)
 
-    if FLAGS.pretrained_model:
-      saver.restore(sess, FLAGS.pretrained_model)
+    
 
     tf.train.start_queue_runners(sess)
     sess.run(tf.global_variables_initializer())
-
+    sess.run(tf.local_variables_initializer())
     tf.logging.info('iteration number, cost')
+
+    if FLAGS.pretrained_model:
+      files = os.listdir(FLAGS.pretrained_model)
+      meta_files = [s for s in files if s.endswith('.meta')]
+      if len(meta_files) == 0:
+        raise ValueError('No pretrained model find under the directory '+ FLAGS.pretrained_model)
+      # saver = tf.train.import_meta_graph(os.path.join(FLAGS.pretrained_model, meta_files[-1]))
+      # print(tf.train.latest_checkpoint(FLAGS.pretrained_model))
+      print('Start to load pretrained model')
+      saver.restore(sess, tf.train.latest_checkpoint(FLAGS.pretrained_model))
+      print('Successfully Restored the model')
 
     print('Start Tranning')
     # Run training.
@@ -249,19 +280,27 @@ def main(unused_argv):
         feed_dict = {val_model.lr: 0.0,
                      val_model.prefix: 'val',
                      val_model.iter_num: np.float32(itr)}
-        _, val_summary_str = sess.run([val_model.train_op, val_model.summ_op],
+        _, val_summary_str, gen_images, images = sess.run([val_model.train_op, val_model.summ_op, val_model.gen_images, val_model.images],
                                        feed_dict)
         summary_writer.add_summary(val_summary_str, itr)
+        # Output a gif file 
+        gen_images = np.asarray(gen_images)
+        images = np.asarray(images)
+        gen_images = np.transpose(gen_images, (1,0,2,3,4))
+        images = np.transpose(images, (1,0,2,3,4))
+
+        npy_to_gif(gen_images[0]*255, '/cs/vml4/xca64/robot_data/gif/gen_' + str(itr) + '.gif')
+        npy_to_gif(images[0]*255, '/cs/vml4/xca64/robot_data/gif/org_' + str(itr) + '.gif')
 
       if (itr) % SAVE_INTERVAL == 2:
         tf.logging.info('Saving model.')
-        saver.save(sess, FLAGS.output_dir + '/model' + str(itr))
+        saver.save(sess,  os.path.join(os.path.expanduser(saver_dir), 'model' + str(itr)))
 
       if (itr) % SUMMARY_INTERVAL:
         summary_writer.add_summary(summary_str, itr)
 
     tf.logging.info('Saving model.')
-    saver.save(sess, FLAGS.output_dir + '/model')
+    saver.save(sess, os.path.join(os.path.expanduser(saver_dir), 'model'))
     tf.logging.info('Training complete')
     tf.logging.flush()
 
