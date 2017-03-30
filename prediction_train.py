@@ -34,16 +34,16 @@ VAL_INTERVAL = 200
 SAVE_INTERVAL = 2000
 
 # tf record data location:
-DATA_DIR = './push/push_train'
+DATA_DIR = '/cs/vml4/xca64/robot_data/push//push_train'
 
 # local output directory
-OUT_DIR = './checkpoints'
+OUT_DIR = '/cs/vml4/xca64/robot_data/checkpoints'
 
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('data_dir', DATA_DIR, 'directory containing data.')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
-flags.DEFINE_string('event_log_dir', './summaries', 'directory for writing summary.')
+flags.DEFINE_string('event_log_dir',OUT_DIR+'/summaries', 'directory for writing summary.')
 flags.DEFINE_integer('num_iterations', 100000, 'number of training iterations.')
 flags.DEFINE_string('pretrained_model', '' ,
                     'filepath of a pretrained model to initialize from.')
