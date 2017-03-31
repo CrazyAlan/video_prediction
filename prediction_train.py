@@ -146,7 +146,7 @@ def main(unused_argv):
       # Print info: iteration #, cost.
       tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost))
       
-      if (itr) % VAL_INTERVAL == 2:
+      if (itr) % VAL_INTERVAL == 20:
         # Run through validation set.
         feed_dict = {val_model.lr: 0.0,
                      val_model.prefix: 'val',
@@ -157,11 +157,11 @@ def main(unused_argv):
         # Output a gif file 
         gen_images = np.transpose(np.asarray(gen_images), (1,0,2,3,4))
         images = np.transpose(np.asarray(images), (1,0,2,3,4))
-        for i in range(FLAGS.batch_size):        
+        for i in range(5):        
           npy_to_gif(gen_images[i]*255, '/cs/vml4/xca64/robot_data/gif/gen_' + str(i) + '.gif')
           npy_to_gif(images[i]*255, '/cs/vml4/xca64/robot_data/gif/org_' + str(i) + '.gif')
 
-      if (itr) % SAVE_INTERVAL == 2:
+      if (itr) % SAVE_INTERVAL == 20:
         tf.logging.info('Saving model.')
         saver.save(sess,  os.path.join(os.path.expanduser(saver_dir), 'model' + str(itr)))
 

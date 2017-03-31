@@ -93,7 +93,7 @@ class Model(object):
        else:
            prefixs='val'
 
-    print('Prefix is', prefixs)
+    # print('Prefix is', prefixs)
     for i, x, gx in zip(
         range(len(gen_images)), images[FLAGS.context_frames:],
         gen_images[FLAGS.context_frames - 1:]):

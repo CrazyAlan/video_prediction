@@ -120,8 +120,8 @@ def construct_model(images,
         hidden[l] = tf_layers.layer_norm(hidden[l], scope='layer_norm'+str(l))
           
       # Update A and A_hat    
-      A=[image] 
-      A_hat=[]
+      A=[] 
+      A_hat=[prev_image]
 
       for l in range(nb_layers):
         
@@ -130,7 +130,7 @@ def construct_model(images,
           if l == 0:
             net=tf.minimum(net, tf.ones_like(net)*pixel_max)
           A_hat.append(net)
-          # print('A and A_hat', A[l], A_hat[l])
+          # print('Aand A_hat', A[l], A_hat[l])
           # Computer the error 
           e_pos = tf.nn.relu(A[l]-A_hat[l] - RELU_SHIFT) + RELU_SHIFT
           e_neg = tf.nn.relu(A_hat[l]-A[l] - RELU_SHIFT) + RELU_SHIFT
