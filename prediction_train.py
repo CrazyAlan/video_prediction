@@ -25,7 +25,7 @@ from tensorflow.python.platform import flags
 
 from data.prediction_input import build_tfrecord_input
 
-from model.prediction_net import Model
+from model.prednet import Model
 
 # How often to record tensorboard summaries.
 SUMMARY_INTERVAL = 40

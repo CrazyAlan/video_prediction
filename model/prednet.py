@@ -2,7 +2,7 @@ import numpy as np
 from datetime import datetime
 import tensorflow as tf
 import os
-from network.prediction_model import construct_model
+from network.prednet_net import construct_model
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
@@ -59,34 +59,26 @@ class Model(object):
 
     images = tf.split(images, images.get_shape().as_list()[1],1 )
     images = [tf.squeeze(img) for img in images]
-  
+    
+    # print(construct_model)
+    # print('Get into Mode construction')
     if reuse_scope is None:
-      gen_images, gen_states = construct_model(
+  
+      gen_images = construct_model(
           images,
-          actions,
-          states,
+          nb_layers=4,
           iter_num=self.iter_num,
           k=FLAGS.schedsamp_k,
           use_state=FLAGS.use_state,
-          num_masks=FLAGS.num_masks,
-          cdna=FLAGS.model == 'CDNA',
-          dna=FLAGS.model == 'DNA',
-          stp=FLAGS.model == 'STP',
           context_frames=FLAGS.context_frames)
     else:  # If it's a validation or test model.
       with tf.variable_scope(reuse_scope, reuse=True):
-        gen_images, gen_states = construct_model(
-            images,
-            actions,
-            states,
-            iter_num=self.iter_num,
-            k=FLAGS.schedsamp_k,
-            use_state=FLAGS.use_state,
-            num_masks=FLAGS.num_masks,
-            cdna=FLAGS.model == 'CDNA',
-            dna=FLAGS.model == 'DNA',
-            stp=FLAGS.model == 'STP',
-            context_frames=FLAGS.context_frames)
+        gen_images = construct_model(
+          images,
+          iter_num=self.iter_num,
+          k=FLAGS.schedsamp_k,
+          use_state=FLAGS.use_state,
+          context_frames=FLAGS.context_frames)
 
     # L2 loss, PSNR for eval.
     loss, psnr_all = 0.0, 0.0
@@ -116,13 +108,14 @@ class Model(object):
       
       loss += recon_cost
 
-    for i, state, gen_state in zip(
-        range(len(gen_states)), states[FLAGS.context_frames:],
-        gen_states[FLAGS.context_frames - 1:]):
-      state_cost = mean_squared_error(state, gen_state) * 1e-4
-      summaries.append(
-          tf.summary.scalar(prefixs + '_state_cost' + str(i), state_cost))
-      loss += state_cost
+    # for i, state, gen_state in zip(
+    #     range(len(gen_states)), states[FLAGS.context_frames:],
+    #     gen_states[FLAGS.context_frames - 1:]):
+    #   state_cost = mean_squared_error(state, gen_state) * 1e-4
+    #   summaries.append(
+    #       tf.summary.scalar(prefixs + '_state_cost' + str(i), state_cost))
+    #   loss += state_cost
+
     summaries.append(tf.summary.scalar(prefixs + '_psnr_all', psnr_all))
     self.psnr_all = psnr_all
 

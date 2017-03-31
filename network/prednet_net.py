@@ -25,12 +25,12 @@ from lstm_ops import basic_conv_lstm_cell
 # Amount to use when lower bounding tensors
 RELU_SHIFT = 1e-12
 
-def init_error(img_height, img_width,color_channels, batch_size, nb_layers):
+def init_error(img_height, img_width,stack_sizes, batch_size, nb_layers):
   batch_size = tf.to_int32(batch_size)
   init_error = []
   for l in range(nb_layers):
     factor = 2**l
-    init_error.append(tf.Variable(tf.zeros(batch_size,img_height/factor,img_width/factor,color_channels*2)))
+    init_error.append(tf.Variable(tf.zeros([batch_size,img_height/factor,img_width/factor,stack_sizes[l]*2])))
   return init_error
 
 def construct_model(images,
@@ -57,6 +57,7 @@ def construct_model(images,
   """
  
   batch_size, img_height, img_width, color_channels = images[0].get_shape()[0:4]
+  batch_size, img_height, img_width, color_channels = int(batch_size), int(img_height), int(img_width), int(color_channels)
   lstm_func = basic_conv_lstm_cell
 
   # Generated robot states and images.
@@ -80,7 +81,7 @@ def construct_model(images,
   
   lstm_state = nb_layers*[None]
   hidden = nb_layers*[None]
-  e_state = init_error(img_height, img_width,color_channels, batch_size, nb_layers)
+  e_state = init_error(img_height, img_width,stack_sizes, batch_size, nb_layers)
 
   for image in images[:-1]:
     # Last till the last 2nd image
@@ -90,7 +91,7 @@ def construct_model(images,
     done_warm_start = len(gen_images) > context_frames - 1
     with slim.arg_scope(
         [lstm_func, slim.layers.conv2d, slim.layers.fully_connected,
-         tf_layers.layer_norm, slim.layers.conv2d_transpose,tf.nn.max_pool],
+         tf_layers.layer_norm, slim.layers.conv2d_transpose],
         reuse=reuse):
 
       if feedself and done_warm_start:
@@ -110,12 +111,12 @@ def construct_model(images,
       # Update R states
       for l in reversed(range(nb_layers)):
         if l == nb_layers-1:
-          hidden[l], lstm_state[l] = lstm_func(e_state[l], lstm_state[l], scope='lstm'+str(l))
+          hidden[l], lstm_state[l] = lstm_func(e_state[l], lstm_state[l], stack_sizes[l], scope='lstm'+str(l))
         else:
           # Add upsampling from previous layer
-          r_up = slim.layers.conv2d_transpose(hidden[l+1], hidden[l+1].get_shape()[3], stride=2, scope='up_sample'+str(l))
+          r_up = slim.layers.conv2d_transpose(hidden[l+1], hidden[l+1].get_shape()[3], 3, stride=2, scope='up_sample'+str(l))
           feature = tf.concat([e_state[l], r_up], axis=3)
-          hidden[l], lstm_state[l] = lstm_func(feature, lstm_state[l])
+          hidden[l], lstm_state[l] = lstm_func(feature, lstm_state[l], stack_sizes[l], scope='lstm'+str(l))
         hidden[l] = tf_layers.layer_norm(hidden[l], scope='layer_norm'+str(l))
           
       # Update A and A_hat    
@@ -124,19 +125,19 @@ def construct_model(images,
 
       for l in range(nb_layers):
         
-          net=slim.conv2d(hidden[l], hidden[l].get_shape()[3], A_filt_sizes[l], stride=1, scope='conv'+str(l))
+          net=slim.conv2d(hidden[l], hidden[l].get_shape()[3], [Ahat_filt_sizes[l],Ahat_filt_sizes[l]], stride=1, scope='conv'+str(l))
           net=tf.nn.relu(net - RELU_SHIFT) + RELU_SHIFT
           if l == 0:
-            net=tf.mimimum(net, tf.ones_like(net)*pixel_max)
+            net=tf.minimum(net, tf.ones_like(net)*pixel_max)
           A_hat.append(net)
-
+          # print('A and A_hat', A[l], A_hat[l])
           # Computer the error 
           e_pos = tf.nn.relu(A[l]-A_hat[l] - RELU_SHIFT) + RELU_SHIFT
           e_neg = tf.nn.relu(A_hat[l]-A[l] - RELU_SHIFT) + RELU_SHIFT
           e_state[l] = tf.concat([e_pos, e_neg], 3)
 
           if l < nb_layers-1:
-            conv_e = slim.conv2d(e_state[l], e_state[l].get_shape()[3], stride=1, scope='conv_e'+str(l))
+            conv_e = slim.conv2d(e_state[l], stack_sizes[l+1], [A_filt_sizes[l], A_filt_sizes[l]] ,stride=1, scope='conv_e'+str(l))
             A.append(tf.nn.max_pool(conv_e, [1,2,2,1], [1,2,2,1],'SAME'))
 
       gen_images.append(A_hat[0])
