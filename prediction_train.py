@@ -286,7 +286,7 @@ def main(unused_argv):
         # Output a gif file 
         gen_images = np.transpose(np.asarray(gen_images), (1,0,2,3,4))
         images = np.transpose(np.asarray(images), (1,0,2,3,4))
-        for i in range(batch_size):        
+        for i in range(FLAGS.batch_size):        
           npy_to_gif(gen_images[i]*255, '/cs/vml4/xca64/robot_data/gif/gen_' + str(i) + '.gif')
           npy_to_gif(images[i]*255, '/cs/vml4/xca64/robot_data/gif/org_' + str(i) + '.gif')
 
