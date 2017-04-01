@@ -115,13 +115,16 @@ def construct_model(images,
         else:
           # Add upsampling from previous layer
           r_up = slim.layers.conv2d_transpose(hidden[l+1], hidden[l+1].get_shape()[3], 3, stride=2, scope='up_sample'+str(l))
+          # import pdb
+          # pdb.set_trace()
+          # r_up = tf.image.resize_images(hidden[l+1], [int(hidden[l+1].get_shape()[1])*2, int(hidden[l+1].get_shape()[2])*2])
           feature = tf.concat([e_state[l], r_up], axis=3)
           hidden[l], lstm_state[l] = lstm_func(feature, lstm_state[l], stack_sizes[l], scope='lstm'+str(l))
         hidden[l] = tf_layers.layer_norm(hidden[l], scope='layer_norm'+str(l))
           
       # Update A and A_hat    
-      A=[] 
-      A_hat=[prev_image]
+      A=[prev_image] 
+      A_hat=[]
 
       for l in range(nb_layers):
         
@@ -132,6 +135,8 @@ def construct_model(images,
           A_hat.append(net)
           # print('Aand A_hat', A[l], A_hat[l])
           # Computer the error 
+          # import pdb
+          # pdb.set_trace()
           e_pos = tf.nn.relu(A[l]-A_hat[l] - RELU_SHIFT) + RELU_SHIFT
           e_neg = tf.nn.relu(A_hat[l]-A[l] - RELU_SHIFT) + RELU_SHIFT
           e_state[l] = tf.concat([e_pos, e_neg], 3)

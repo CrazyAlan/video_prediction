@@ -155,7 +155,7 @@ def main(unused_argv):
                                        feed_dict)
         summary_writer.add_summary(val_summary_str, itr)
         # Output a gif file 
-        gen_images = np.transpose(np.asarray(gen_images), (1,0,2,3,4))
+        gen_images = np.transpose(np.asarray(gen_images[FLAGS.context_frames - 1:]), (1,0,2,3,4))
         images = np.transpose(np.asarray(images), (1,0,2,3,4))
         for i in range(5):        
           npy_to_gif(gen_images[i]*255, '/cs/vml4/xca64/robot_data/gif/gen_' + str(i) + '.gif')
