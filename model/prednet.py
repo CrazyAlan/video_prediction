@@ -2,13 +2,20 @@ import numpy as np
 from datetime import datetime
 import tensorflow as tf
 import os
-from network.prednet_net import construct_model
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
 
+
 FLAGS = flags.FLAGS
 
+if FLAGS.model == 'prednet':  
+  from network.prednet_net import construct_model
+elif FLAGS.model == 'prednet_v2':
+  from network.prednet_net_v2 import construct_model
+else:
+  raise RuntimeError('No prednet model found')
+    
 ## Helper functions
 def peak_signal_to_noise_ratio(true, pred):
   """Image quality metric based on maximal signal power vs. power of the noise.

@@ -25,7 +25,6 @@ from tensorflow.python.platform import flags
 
 from data.prediction_input import build_tfrecord_input
 
-from model.prednet import Model
 
 # How often to record tensorboard summaries.
 SUMMARY_INTERVAL = 40
@@ -60,8 +59,8 @@ flags.DEFINE_integer('context_frames', 2, '# of frames before predictions.')
 flags.DEFINE_integer('use_state', 1,
                      'Whether or not to give the state+action to the model')
 
-flags.DEFINE_string('model', 'CDNA',
-                    'model architecture to use - CDNA, DNA, or STP')
+flags.DEFINE_string('model', 'prednet',
+                    'model architecture to use - prediction, prednet')
 
 flags.DEFINE_integer('num_masks', 10,
                      'number of masks, usually 1 for DNA, 10 for CDNA, STN.')
@@ -76,8 +75,12 @@ flags.DEFINE_integer('batch_size', 32, 'batch size for training')
 flags.DEFINE_float('learning_rate', 0.001,
                    'the base learning rate of the generator')
 
-
-
+if FLAGS.model == 'prediction':
+  from model.prediction import Model
+elif FLAGS.model == 'prednet' or FLAGS.model == 'prednet_v2':
+  from model.prednet import Model
+else:
+  raise RuntimeError('No model found')
 
 import moviepy.editor as mpy
 def npy_to_gif(npy, filename):
