@@ -33,7 +33,7 @@ SUMMARY_INTERVAL = 40
 VAL_INTERVAL = 200
 
 # How often to save a model checkpoint
-SAVE_INTERVAL = 2000
+SAVE_INTERVAL = 400
 
 # tf record data location:
 DATA_DIR = '/cs/vml4/xca64/robot_data/push/push_train'
@@ -77,7 +77,7 @@ flags.DEFINE_float('learning_rate', 0.001,
 
 if FLAGS.model == 'prediction':
   from model.prediction import Model
-elif FLAGS.model == 'prednet' or FLAGS.model == 'prednet_v2':
+elif FLAGS.model == 'prednet' or FLAGS.model == 'prednet_v2' or FLAGS.model == 'prednet_v3':
   from model.prednet import Model
 else:
   raise RuntimeError('No model found')

@@ -13,6 +13,8 @@ if FLAGS.model == 'prednet':
   from network.prednet_net import construct_model
 elif FLAGS.model == 'prednet_v2':
   from network.prednet_net_v2 import construct_model
+elif FLAGS.model == 'prednet_v3':
+  from network.prednet_net_v3 import construct_model
 else:
   raise RuntimeError('No prednet model found')
     
