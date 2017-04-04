@@ -127,7 +127,9 @@ def construct_model(images,
         if l == 0:
           A_hidden[l], A_lstm_state[l] = lstm_func(prev_image, A_lstm_state[l], stack_sizes[l], scope='A_lstm'+str(l))
         else:
+
           a_up = slim.conv2d(A_hidden[l-1], stack_sizes[l], [A_filt_sizes[l-1], A_filt_sizes[l-1]] ,stride=2, scope='conv_a'+str(l))
+
           # feature = tf.concat([A_hidden[l], a_up], axis=3)
           # conv_A = tf.nn.relu(conv_A -  RELU_SHIFT) + RELU_SHIFT
           A_hidden[l], A_lstm_state[l] = lstm_func(a_up, A_lstm_state[l], stack_sizes[l], scope='A_lstm'+str(l))
@@ -145,6 +147,7 @@ def construct_model(images,
           # pdb.set_trace()
           # r_up = tf.image.resize_images(hidden[l+1], [int(hidden[l+1].get_shape()[1])*2, int(hidden[l+1].get_shape()[2])*2])
           feature = tf.concat([A_hidden[l], r_up], axis=3)
+
           hidden[l], lstm_state[l] = lstm_func(feature, lstm_state[l], stack_sizes[l], scope='lstm'+str(l))
         hidden[l] = tf_layers.layer_norm(hidden[l], scope='layer_norm'+str(l))
           
