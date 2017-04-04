@@ -39,7 +39,7 @@ SAVE_INTERVAL = 400
 DATA_DIR = '/cs/vml4/xca64/robot_data/push/push_train'
 
 # local output directory
-OUT_DIR = '/cs/vml4/xca64/robot_data/checkpoints'
+OUT_DIR = '/cs/vml4/xca64/robot_data/result'
 
 # summary output dir
 SUM_DIR = '/cs/vml4/xca64/robot_data/summaries'
@@ -48,6 +48,8 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_string('data_dir', DATA_DIR, 'directory containing data.')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
+flags.DEFINE_string('gif_dir', '/cs/vml4/xca64/robot_data/gif/' , 'directory gif result')
+flags.DEFINE_integer('gif_nums', 5 , 'number of gif files to save')
 flags.DEFINE_string('event_log_dir',SUM_DIR, 'directory for writing summary.')
 flags.DEFINE_integer('num_iterations', 100000, 'number of training iterations.')
 flags.DEFINE_string('pretrained_model', '' ,
@@ -107,15 +109,23 @@ def main(unused_argv):
     # Make saver.
     saver = tf.train.Saver(
         tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES), max_to_keep=0)
-    saver_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), datetime.now().strftime('%Y-%m-%d-%H%M%S'))
+
+    # if not os.path.isdir(os.path.expanduser(FLAGS.output_dir)):
+    #   os.mkdir(os.path.expanduser(FLAGS.output_dir)) 
+    time_info = datetime.now().strftime('%Y-%m-%d-%H%M%S')
+    saver_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info, 'checkpoints')
     if not os.path.isdir(saver_dir):
-      os.mkdir(saver_dir)
+      os.makedirs(saver_dir)
 
     # Make training session.
     # sess = tf.InteractiveSession()
     sess = tf.Session()
+    summary_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info, 'summaries')
+    if os.path.isdir(summary_dir):
+      os.makedirs(summary_dir)
+
     summary_writer = tf.summary.FileWriter(
-        FLAGS.event_log_dir, graph=sess.graph, flush_secs=10)
+        summary_dir, graph=sess.graph, flush_secs=10)
 
     
 
@@ -160,9 +170,13 @@ def main(unused_argv):
         # Output a gif file 
         gen_images = np.transpose(np.asarray(gen_images[FLAGS.context_frames - 1:]), (1,0,2,3,4))
         images = np.transpose(np.asarray(images), (1,0,2,3,4))
-        for i in range(5):        
-          npy_to_gif(gen_images[i]*255, '/cs/vml4/xca64/robot_data/gif/gen_' + str(i) + '.gif')
-          npy_to_gif(images[i]*255, '/cs/vml4/xca64/robot_data/gif/org_' + str(i) + '.gif')
+        gif_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info, 'gif')
+        if not os.path.isdir(gif_dir):
+          os.makedirs(gif_dir)
+
+        for i in range(FLAGS.gif_nums):        
+          npy_to_gif(gen_images[i]*255, os.path.join(gif_dir, str(i)+'_gen.gif'))
+          npy_to_gif(images[i]*255, os.path.join(gif_dir, str(i)+'_org.gif'))
 
       if (itr) % SAVE_INTERVAL == 20:
         tf.logging.info('Saving model.')

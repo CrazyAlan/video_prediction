@@ -30,7 +30,7 @@ def init_error(img_height, img_width,stack_sizes, batch_size, nb_layers):
   init_error = []
   for l in range(nb_layers):
     factor = 2**l
-    init_error.append(tf.Variable(tf.zeros([batch_size,img_height/factor,img_width/factor,stack_sizes[l]*2])))
+    init_error.append(tf.zeros([batch_size,img_height/factor,img_width/factor,stack_sizes[l]*2]))
   return init_error
 
 def construct_model(images,

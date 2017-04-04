@@ -48,8 +48,8 @@ def init_state(inputs,
 
   batch_size = tf.to_int32(batch_size)
   
-  initial_state=tf.Variable(tf.zeros(tf.stack([batch_size] + state_shape)))
-
+  # initial_state=tf.Variable(tf.zeros(tf.stack([batch_size] + state_shape)))
+  initial_state = tf.zeros(tf.stack([batch_size] + state_shape))
   initial_state.set_shape([inferred_batch_size] + state_shape)
 
   return initial_state
