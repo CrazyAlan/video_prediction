@@ -23,6 +23,7 @@ import os
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
+from data.prediction_input import build_tfrecord_input
 
 
 # How often to record tensorboard summaries.
@@ -46,7 +47,6 @@ SUM_DIR = '/cs/vml4/xca64/robot_data/summaries'
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string('data_dir', DATA_DIR, 'directory containing data.')
-flags.DEFINE_string('dataset_name', 'ucf', 'dataset used')
 flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('gif_dir', '/cs/vml4/xca64/robot_data/gif/' , 'directory gif result')
 flags.DEFINE_integer('gif_nums', 5 , 'number of gif files to save')
@@ -73,24 +73,16 @@ flags.DEFINE_float('train_val_split', 0.95,
                    'The percentage of files to use for the training set,'
                    ' vs. the validation set.')
 
-flags.DEFINE_float('gpu_memory_fraction', 0.5,
-                   'gpu percentage')
-
 flags.DEFINE_integer('batch_size', 32, 'batch size for training')
 flags.DEFINE_float('learning_rate', 0.001,
                    'the base learning rate of the generator')
 
-if FLAGS.model == 'prediction':
+if FLAGS.model == 'CDNA' or FLAGS.model == 'DNA' or FLAGS.model == 'STP':
   from model.prediction import Model
 elif FLAGS.model == 'prednet' or FLAGS.model == 'prednet_v2' or FLAGS.model == 'prednet_v3':
   from model.prednet import Model
 else:
   raise RuntimeError('No model found')
-
-if FLAGS.dataset_name == 'ucf':
-  from data.ucf_sports_input import build_tfrecord_input
-else:
-  from data.prediction_input import build_tfrecord_input
 
 import moviepy.editor as mpy
 def npy_to_gif(npy, filename):
@@ -101,12 +93,10 @@ def npy_to_gif(npy, filename):
 
 def main(unused_argv):
   tf.logging.set_verbosity(tf.logging.INFO)
-
   with tf.Graph().as_default():
     print('Constructing models and inputs.')
     with tf.variable_scope('model', reuse=None) as training_scope:
       images, actions, states = build_tfrecord_input(training=True)
-
       model = Model(images, actions, states, FLAGS.sequence_length)
 
     with tf.variable_scope('val_model', reuse=None):
@@ -128,11 +118,11 @@ def main(unused_argv):
 
     # Make training session.
     # sess = tf.InteractiveSession()
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_memory_fraction)
-    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))        
+    # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=args.gpu_memory_fraction)
+    # sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options, log_device_placement=False))
 
+    sess = tf.Session()
     summary_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info, 'summaries')
-
     if os.path.isdir(summary_dir):
       os.makedirs(summary_dir)
 
