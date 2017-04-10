@@ -73,14 +73,16 @@ flags.DEFINE_float('train_val_split', 0.95,
                    'The percentage of files to use for the training set,'
                    ' vs. the validation set.')
 
-flags.DEFINE_float('gpu_memory_fraction', 0.5,
+flags.DEFINE_float('gpu_memory_fraction', 1.0,
                    'gpu percentage')
 
 flags.DEFINE_integer('batch_size', 32, 'batch size for training')
 flags.DEFINE_float('learning_rate', 0.001,
                    'the base learning rate of the generator')
 
-if FLAGS.model == 'prediction':
+
+
+if FLAGS.model == 'CDNA' or FLAGS.model == 'DNA' or FLAGS.model == 'STP':
   from model.prediction import Model
 elif FLAGS.model == 'prednet' or FLAGS.model == 'prednet_v2' or FLAGS.model == 'prednet_v3':
   from model.prednet import Model
