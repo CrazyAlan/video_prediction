@@ -64,12 +64,17 @@ def read_write_img(input_dir, output_dir):
         shutil.rmtree(output_dir)
         os.makedirs(output_dir)
 
-
     for i, num in enumerate(nums):
-        img = np.array(vid.get_data(num),dtype=np.uint8)
-        file_name = os.path.join(output_dir,'frame'+str(i)+'.jpg')
-        # scaled = misc.imresize(img, args.image_ratio, interp='bilinear')
-        imageio.imwrite(file_name, img)
+        try:
+            img = np.array(vid.get_data(num),dtype=np.uint8)
+        except:
+            print('Unexpected error')
+            break
+        else:
+            file_name = os.path.join(output_dir,'frame'+str(i)+'.jpg')
+            # scaled = misc.imresize(img, args.image_ratio, interp='bilinear')
+            imageio.imwrite(file_name, img)
+
 
 def parse_arguments(argv):
     parser = argparse.ArgumentParser()
