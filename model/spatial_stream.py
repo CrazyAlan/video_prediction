@@ -154,24 +154,34 @@ class Model(object):
                images,
                labels,
                global_step,
-               reuse_scope=None):
+               reuse=None):
 
     labels = slim.one_hot_encoding(
       tf.string_to_number(labels, out_type=tf.int32), FLAGS.nrof_classes)
     # inputs has shape [batch, 224, 224, 3]
-    with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-      net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes)
-    cross_entropy = tf.losses.softmax_cross_entropy(
-        labels,tf.squeeze(net))
+    init_from_checkpoint = None
+    train_op = None
+    cross_entropy = None
 
-    train_op = train(cross_entropy, global_step,
+    if reuse is None:    
+      with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes)
+      init_from_checkpoint = _get_init_fn()
+
+      cross_entropy = tf.losses.softmax_cross_entropy(
+        labels,tf.squeeze(net))
+      train_op = train(cross_entropy, global_step,
                      FLAGS.optimizer, FLAGS.learning_rate, 
                      0.9999, _get_variables_to_train()) 
 
+    else:
+      with slim.arg_scope(resnet_v1.resnet_arg_scope()):
+        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, reuse=True)
+      cross_entropy = tf.losses.softmax_cross_entropy(
+        labels,tf.squeeze(net))
+    
     correct_prediction = tf.equal(tf.argmax(tf.squeeze(end_points['predictions']),1), tf.argmax(labels,1))
     accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-
-    init_from_checkpoint = _get_init_fn()
 
     summary_op = tf.summary.merge_all()
 

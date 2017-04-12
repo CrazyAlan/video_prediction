@@ -98,14 +98,14 @@ def main(unused_argv):
 
   with tf.Graph().as_default():
     print('Constructing models and inputs.')
-    images, labels = build_tfrecord_input()
-   
+    
     global_step = tf.Variable(0, trainable=False)
 
+    images, labels = build_tfrecord_input(training=True)
     model = Model(images, labels, global_step)
 
-    # import pdb
-    # pdb.set_trace()
+    val_images, val_labels = build_tfrecord_input(training=False)
+    val_model = Model(val_images, val_labels, global_step, reuse=True)
    
     
     print('Constructing saver.')
@@ -146,8 +146,10 @@ def main(unused_argv):
       cost, _, summary_str, acc = sess.run([model.cross_entropy, model.train_op, model.summary_op, model.accuracy])
       tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
 
-      if (itr) % VAL_INTERVAL == 20:
+      if (itr) % VAL_INTERVAL == 2:
         print('Should run the validation now')
+        cost, summary_str, acc = sess.run([val_model.cross_entropy, val_model.summary_op, val_model.accuracy])
+        tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
 
       if (itr) % SAVE_INTERVAL == 20:
         tf.logging.info('Saving model.')

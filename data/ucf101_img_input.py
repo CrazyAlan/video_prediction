@@ -57,7 +57,8 @@ def build_tfrecord_input(training=True):
 
     images_and_labels = []
     fileinfo = input_queue.dequeue()
-
+    # import pdb
+    # pdb.set_trace()
     indx = random.randint(0,NROF_SAMPLES)
     filename = fileinfo[indx,0]
     label = fileinfo[indx,1]
