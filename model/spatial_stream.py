@@ -6,7 +6,7 @@ from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
 from tensorflow.python.ops import control_flow_ops
-from tensorflow.contrib.slim.nets import resnet_v1
+from slim.nets import resnet_v1
 slim = tf.contrib.slim
 
 FLAGS = flags.FLAGS
@@ -177,7 +177,7 @@ class Model(object):
 
     else:
       with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, reuse=True)
+        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, reuse=True, is_training=False)
       cross_entropy = tf.losses.softmax_cross_entropy(
         labels,tf.squeeze(net))
     

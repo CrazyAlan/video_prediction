@@ -118,10 +118,10 @@ def main(unused_argv):
     if not os.path.isdir(saver_dir):
       os.makedirs(saver_dir)
 
-    # gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_memory_fraction)
-    # sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))        
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_memory_fraction)
+    sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))        
     
-    sess = tf.Session()
+    # sess = tf.Session()
 
     summary_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info, 'summaries')
     if os.path.isdir(summary_dir):
