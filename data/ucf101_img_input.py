@@ -74,12 +74,13 @@ def build_tfrecord_input(training=True):
     image = tf.reshape(image, [IMG_HEIGHT, IMG_WIDTH, 3])
     image.set_shape((IMG_HEIGHT, IMG_WIDTH, 3))
     image = tf.image.random_flip_left_right(image)
+    image = tf.image.per_image_standardization(image)
     # images.append(image)
 
     image_batch, label_batch = tf.train.batch(
             [image, label],
             FLAGS.batch_size,
-            num_threads=FLAGS.batch_size,
+            num_threads=32,
             capacity=100 * FLAGS.batch_size)
     
     return image_batch, label_batch
