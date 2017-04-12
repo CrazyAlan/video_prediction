@@ -122,7 +122,7 @@ def _get_init_fn():
   exclusions = []
   if FLAGS.checkpoint_exclude_scopes:
     exclusions = [scope.strip()
-                  for scope in FLAGS.checkpoint_exclude_scopes.split(',')]
+    for scope in FLAGS.checkpoint_exclude_scopes.split(',')]
 
   # TODO(sguada) variables.filter_variables()
   variables_to_restore = []
@@ -167,7 +167,8 @@ class Model(object):
       with slim.arg_scope(resnet_v1.resnet_arg_scope()):
         net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes)
       init_from_checkpoint = _get_init_fn()
-
+      # import pdb
+      # pdb.set_trace()
       cross_entropy = tf.losses.softmax_cross_entropy(
         labels,tf.squeeze(net))
       train_op = train(cross_entropy, global_step,

@@ -35,6 +35,7 @@ flags.DEFINE_string('gif_dir', '/cs/vml4/xca64/robot_data/gif/' , 'directory gif
 flags.DEFINE_integer('gif_nums', 5 , 'number of gif files to save')
 flags.DEFINE_string('event_log_dir',SUM_DIR, 'directory for writing summary.')
 flags.DEFINE_integer('num_iterations', 100000, 'number of training iterations.')
+flags.DEFINE_integer('test_images', 3783, 'number of training iterations.')
 flags.DEFINE_string('pretrained_model', '' ,
                     'filepath of a pretrained model to initialize from.')
 
@@ -46,7 +47,7 @@ flags.DEFINE_integer('context_frames', 2, '# of frames before predictions.')
 flags.DEFINE_integer('use_state', 1,
                      'Whether or not to give the state+action to the model')
 
-flags.DEFINE_string('model', 'prednet',
+flags.DEFINE_string('model', 'resnet50',
                     'model architecture to use - prediction, prednet')
 
 flags.DEFINE_string('optimizer', 'ADAM',
@@ -64,7 +65,7 @@ flags.DEFINE_float('train_val_split', 0.95,
 flags.DEFINE_float('gpu_memory_fraction', 1.0,
                    'gpu percentage')
 
-flags.DEFINE_integer('batch_size', 32, 'batch size for training')
+flags.DEFINE_integer('batch_size', 128, 'batch size for training')
 flags.DEFINE_float('learning_rate', 0.001,
                    'the base learning rate of the generator')
 
@@ -72,14 +73,14 @@ flags.DEFINE_float('learning_rate', 0.001,
 # Fine-Tuning Flags #
 #####################
 flags.DEFINE_string(
-    'checkpoint_path', '/home/xca64/vml4/resnet/model/resnet_v1_50.ckpt',
+    'checkpoint_path', None,
     'The path to a checkpoint from which to fine-tune.')
 flags.DEFINE_string(
-    'checkpoint_exclude_scopes', 'resnet_v1_50/logits,predictions',
+    'checkpoint_exclude_scopes', None,
     'Comma-separated list of scopes of variables to exclude when restoring '
     'from a checkpoint.')
 flags.DEFINE_string(
-    'trainable_scopes', None,
+    'trainable_scopes', 'resnet_v1_50/logits',
     'Comma-separated list of scopes to filter the set of variables to train.'
     'By default, None would train all the variables.')
 flags.DEFINE_boolean(
@@ -148,8 +149,16 @@ def main(unused_argv):
 
       if (itr) % VAL_INTERVAL == 2:
         print('Should run the validation now')
-        cost, summary_str, acc = sess.run([val_model.cross_entropy, val_model.summary_op, val_model.accuracy])
-        tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
+        val_acc = []
+        val_cost = []
+        for val_itr in range(FLAGS.test_images/FLAGS.batch_size):
+          cost, summary_str, acc = sess.run([val_model.cross_entropy, val_model.summary_op, val_model.accuracy])
+          val_acc.append(acc)
+          val_cost.append(cost)
+
+        cost = np.mean(val_cost)
+        acc = np.mean(val_acc)
+        tf.logging.info('  Validation Error ' + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
 
       if (itr) % SAVE_INTERVAL == 20:
         tf.logging.info('Saving model.')
