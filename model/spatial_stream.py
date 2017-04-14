@@ -166,6 +166,8 @@ class Model(object):
     if reuse is None:    
       with slim.arg_scope(resnet_v1.resnet_arg_scope()):
         net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes)
+      # import pdb
+      # pdb.set_trace()
       init_from_checkpoint = _get_init_fn()
       # import pdb
       # pdb.set_trace()
@@ -177,7 +179,7 @@ class Model(object):
 
     else:
       with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, reuse=True, is_training=False)
+        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, reuse=True)
       cross_entropy = tf.losses.softmax_cross_entropy(
         labels,tf.squeeze(net))
     

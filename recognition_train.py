@@ -12,10 +12,10 @@ from tensorflow.python.platform import flags
 SUMMARY_INTERVAL = 40
 
 # How often to run a batch through the validation model.
-VAL_INTERVAL = 200
+VAL_INTERVAL = 1000
 
 # How often to save a model checkpoint
-SAVE_INTERVAL = 400
+SAVE_INTERVAL = 500
 
 # tf record data location:
 DATA_DIR = '/home/xca64/vml4/dataset/ucf101/ucf101_imgs'
@@ -80,7 +80,7 @@ flags.DEFINE_string(
     'Comma-separated list of scopes of variables to exclude when restoring '
     'from a checkpoint.')
 flags.DEFINE_string(
-    'trainable_scopes', 'resnet_v1_50/logits',
+    'trainable_scopes', None,
     'Comma-separated list of scopes to filter the set of variables to train.'
     'By default, None would train all the variables.')
 flags.DEFINE_boolean(
@@ -88,6 +88,7 @@ flags.DEFINE_boolean(
     'When restoring a checkpoint would ignore missing variables.')
 
 from data.ucf101_img_input import build_tfrecord_input
+from data.ucf101_img_input import build_tfrecord_input_val
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.contrib.slim.nets import resnet_v1
 slim = tf.contrib.slim
@@ -105,7 +106,7 @@ def main(unused_argv):
     images, labels = build_tfrecord_input(training=True)
     model = Model(images, labels, global_step)
 
-    val_images, val_labels = build_tfrecord_input(training=False)
+    val_images, val_labels = build_tfrecord_input_val(training=False)
     val_model = Model(val_images, val_labels, global_step, reuse=True)
    
     
@@ -151,7 +152,8 @@ def main(unused_argv):
         print('Should run the validation now')
         val_acc = []
         val_cost = []
-        for val_itr in range(FLAGS.test_images/FLAGS.batch_size):
+        for val_itr in range(100):
+          print('Val image', val_itr, 'acc ', acc)
           cost, summary_str, acc = sess.run([val_model.cross_entropy, val_model.summary_op, val_model.accuracy])
           val_acc.append(acc)
           val_cost.append(cost)

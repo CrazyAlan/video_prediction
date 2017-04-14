@@ -1,2 +1,3 @@
 push
+*.ipynb
 *.pyc
