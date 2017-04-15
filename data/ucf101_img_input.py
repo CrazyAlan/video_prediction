@@ -92,7 +92,7 @@ def get_image_paths_and_labels(list_dir, split='1', training=True):
 
 def build_tfrecord_input_val(training=False):
     fileseq, labelsseq = get_image_paths_and_labels(list_dir, training=training)
-    input_queue = tf.train.input_producer(np.asarray(np.transpose([fileseq, labelsseq], (1,0))), shuffle=False)
+    input_queue = tf.train.input_producer(np.asarray(np.transpose([fileseq, labelsseq], (1,0))), shuffle=True)
 
     fileinfo = input_queue.dequeue()
     

@@ -6,7 +6,7 @@ import os
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
-
+#export PYTHONPATH=/home/xca64/vml4/github/video_prediction:/home/xca64/vml4/github/video_prediction/slim
 
 # How often to record tensorboard summaries.
 SUMMARY_INTERVAL = 40
@@ -142,19 +142,19 @@ def main(unused_argv):
 
     print('Start Tranning')
     # Run training.
-    for itr in range(FLAGS.num_iterations):
+    for itr in range(0,FLAGS.num_iterations):
       # import pdb
       # pdb.set_trace()
       cost, _, summary_str, acc = sess.run([model.cross_entropy, model.train_op, model.summary_op, model.accuracy])
       tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
 
-      if (itr) % VAL_INTERVAL == 2:
+      if (itr) % VAL_INTERVAL == 900:
         print('Should run the validation now')
         val_acc = []
         val_cost = []
-        for val_itr in range(100):
-          print('Val image', val_itr, 'acc ', acc)
+        for val_itr in range(50):
           cost, summary_str, acc = sess.run([val_model.cross_entropy, val_model.summary_op, val_model.accuracy])
+          print('Val image', val_itr, 'acc ', acc, 'cost ', cost)
           val_acc.append(acc)
           val_cost.append(cost)
 
@@ -162,7 +162,7 @@ def main(unused_argv):
         acc = np.mean(val_acc)
         tf.logging.info('  Validation Error ' + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
 
-      if (itr) % SAVE_INTERVAL == 20:
+      if (itr) % SAVE_INTERVAL == SAVE_INTERVAL-1:
         tf.logging.info('Saving model.')
         saver.save(sess,  os.path.join(os.path.expanduser(saver_dir), 'model' + str(itr)))
 

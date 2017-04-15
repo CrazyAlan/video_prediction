@@ -71,13 +71,18 @@ def train(total_loss, global_step, optimizer, learning_rate, moving_average_deca
         for grad, var in grads:
             if grad is not None:
                 tf.summary.histogram(var.op.name + '/gradients', grad)
-  
+    # import pdb
+    # pdb.set_trace()
+
     # Track the moving averages of all trainable variables.
     variable_averages = tf.train.ExponentialMovingAverage(
         moving_average_decay, global_step)
     variables_averages_op = variable_averages.apply(tf.trainable_variables())
-  
+
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
     with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
+      with tf.control_dependencies(update_ops):
         train_op = tf.no_op(name='train')
   
     return train_op
@@ -169,8 +174,7 @@ class Model(object):
       # import pdb
       # pdb.set_trace()
       init_from_checkpoint = _get_init_fn()
-      # import pdb
-      # pdb.set_trace()
+
       cross_entropy = tf.losses.softmax_cross_entropy(
         labels,tf.squeeze(net))
       train_op = train(cross_entropy, global_step,
@@ -179,7 +183,7 @@ class Model(object):
 
     else:
       with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, reuse=True)
+        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, is_training=False,reuse=True)
       cross_entropy = tf.losses.softmax_cross_entropy(
         labels,tf.squeeze(net))
     
