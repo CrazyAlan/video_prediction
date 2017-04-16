@@ -126,14 +126,14 @@ def build_tfrecord_input_val(training=False):
     labels = 10*[label]
     labels = tf.reshape(labels,[NROF_VAL_SAMPLES*10,-1])
 
-    # image_batch, label_batch = tf.train.batch(
-    #     [images, labels],
-    #     1,
-    #     num_threads=NROF_VAL_SAMPLES,
-    #     capacity=10 * NROF_VAL_SAMPLES)
+    image_batch, label_batch = tf.train.batch(
+        [images, labels],
+        1,
+        num_threads=NROF_VAL_SAMPLES,
+        capacity=15)
 
-    image_batch = tf.reshape(images, [NROF_VAL_SAMPLES*10, OUT_HEIGHT,OUT_WIDTH,3])
-    label_batch = tf.reshape(labels, [NROF_VAL_SAMPLES*10])
+    image_batch = tf.reshape(image_batch, [NROF_VAL_SAMPLES*10, OUT_HEIGHT,OUT_WIDTH,3])
+    label_batch = tf.reshape(label_batch, [NROF_VAL_SAMPLES*10])
 
     # import pdb
     # pdb.set_trace()

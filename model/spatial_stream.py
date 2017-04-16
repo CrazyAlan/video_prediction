@@ -168,6 +168,9 @@ class Model(object):
     train_op = None
     cross_entropy = None
 
+    learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step,
+                                           2000, 0.1, staircase=True)
+
     if reuse is None:    
       with slim.arg_scope(resnet_v1.resnet_arg_scope()):
         net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes)
@@ -178,7 +181,7 @@ class Model(object):
       cross_entropy = tf.losses.softmax_cross_entropy(
         labels,tf.squeeze(net))
       train_op = train(cross_entropy, global_step,
-                     FLAGS.optimizer, FLAGS.learning_rate, 
+                     FLAGS.optimizer, learning_rate, 
                      0.9999, _get_variables_to_train()) 
 
       correct_prediction = tf.equal(tf.argmax(tf.squeeze(end_points['predictions']),1), tf.argmax(labels,1))
@@ -210,3 +213,4 @@ class Model(object):
     self.cross_entropy = cross_entropy
     self.train_op = train_op
     self.summary_op = summary_op
+    self.learning_rate = learning_rate

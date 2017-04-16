@@ -12,10 +12,10 @@ from tensorflow.python.platform import flags
 SUMMARY_INTERVAL = 40
 
 # How often to run a batch through the validation model.
-VAL_INTERVAL = 1000
+VAL_INTERVAL = 2000
 
 # How often to save a model checkpoint
-SAVE_INTERVAL = 500
+SAVE_INTERVAL = 1000
 
 # tf record data location:
 DATA_DIR = '/home/xca64/vml4/dataset/ucf101/ucf101_imgs'
@@ -34,7 +34,7 @@ flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('gif_dir', '/cs/vml4/xca64/robot_data/gif/' , 'directory gif result')
 flags.DEFINE_integer('gif_nums', 5 , 'number of gif files to save')
 flags.DEFINE_string('event_log_dir',SUM_DIR, 'directory for writing summary.')
-flags.DEFINE_integer('num_iterations', 100000, 'number of training iterations.')
+flags.DEFINE_integer('num_iterations', 4500, 'number of training iterations.')
 flags.DEFINE_integer('test_images', 3783, 'number of training iterations.')
 flags.DEFINE_string('pretrained_model', '' ,
                     'filepath of a pretrained model to initialize from.')
@@ -134,31 +134,25 @@ def main(unused_argv):
     tf.train.start_queue_runners(coord=coord, sess=sess)
     sess.run(tf.global_variables_initializer())
 
-    # import pdb
-    # pdb.set_trace()
-    # Init from checkpoint
     if FLAGS.checkpoint_path is not None:
       model.init_from_checkpoint(sess)
 
     print('Start Tranning')
     # Run training.
     for itr in range(0,FLAGS.num_iterations):
-      # import pdb
-      # pdb.set_trace()
-      cost, _, summary_str, acc = sess.run([model.cross_entropy, model.train_op, model.summary_op, model.accuracy])
-      tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
 
-      if (itr) % VAL_INTERVAL == 1:
-        print('Should run the validation now')
+      cost, _, summary_str, acc, learning_rate = sess.run([model.cross_entropy, model.train_op, model.summary_op, model.accuracy, model.learning_rate])
+      if itr % 10 == 0:
+        tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc) + ', Learning Rate is ' + str(learning_rate))
+
+      if (itr) % VAL_INTERVAL == VAL_INTERVAL - 1:
+        print('Running Validation Now')
         val_acc = []
-        val_cost = []
-        for val_itr in range(4000):
+        for val_itr in range(200):
           summary_str, acc = sess.run([val_model.summary_op, val_model.accuracy])
           val_acc.append(acc)
-          print('Val image', val_itr, 'acc ', acc, 'Mean is', np.mean(val_acc))
-          
-        acc = np.mean(val_acc)
-        tf.logging.info('  Validation Error ' + ', Accuracy ' + str(acc))
+          if val_itr % 10 == 0:
+            tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', acc ' + str(acc) + ' , Accuracy ' + str(np.mean(val_acc)))
 
       if (itr) % SAVE_INTERVAL == SAVE_INTERVAL-1:
         tf.logging.info('Saving model.')
@@ -166,6 +160,15 @@ def main(unused_argv):
 
       if (itr) % SUMMARY_INTERVAL:
         summary_writer.add_summary(summary_str, itr)
+
+    ## Final Validation
+    print('Running Final Validation Now')
+    val_acc = []
+    for val_itr in range(3500):
+      acc = sess.run([val_model.accuracy])
+      val_acc.append(acc)
+      if val_itr % 10 == 0:
+        tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', acc ' + str(acc) + ' , Accuracy ' + str(np.mean(val_acc)))
 
 
     tf.logging.info('Saving model.')
