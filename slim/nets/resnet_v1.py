@@ -244,6 +244,7 @@ def resnet_v1_101(inputs,
                   is_training=True,
                   global_pool=True,
                   output_stride=None,
+                  partial_bn=False,
                   reuse=None,
                   scope='resnet_v1_101'):
   """ResNet-101 model of [1]. See resnet_v1() for arg and return description."""
@@ -259,7 +260,7 @@ def resnet_v1_101(inputs,
   ]
   return resnet_v1(inputs, blocks, num_classes, is_training,
                    global_pool=global_pool, output_stride=output_stride,
-                   include_root_block=True, reuse=reuse, scope=scope)
+                   include_root_block=True, partial_bn=partial_bn, reuse=reuse, scope=scope)
 resnet_v1_101.default_image_size = resnet_v1.default_image_size
 
 
@@ -269,6 +270,7 @@ def resnet_v1_152(inputs,
                   global_pool=True,
                   output_stride=None,
                   reuse=None,
+                  partial_bn=False,
                   scope='resnet_v1_152'):
   """ResNet-152 model of [1]. See resnet_v1() for arg and return description."""
   blocks = [
@@ -282,7 +284,7 @@ def resnet_v1_152(inputs,
           'block4', bottleneck, [(2048, 512, 1)] * 3)]
   return resnet_v1(inputs, blocks, num_classes, is_training,
                    global_pool=global_pool, output_stride=output_stride,
-                   include_root_block=True, reuse=reuse, scope=scope)
+                   include_root_block=True,  partial_bn=partial_bn, reuse=reuse, scope=scope)
 resnet_v1_152.default_image_size = resnet_v1.default_image_size
 
 

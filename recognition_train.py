@@ -41,13 +41,17 @@ flags.DEFINE_string('pretrained_model', '' ,
 
 flags.DEFINE_integer('sequence_length', 10,
                      'sequence length, including context frames.')
+
+flags.DEFINE_integer('val_capacity', 5,
+                     'sequence length, including context frames.')
+
 flags.DEFINE_integer('nrof_classes', 101,
                      'Number of classes')
 flags.DEFINE_integer('context_frames', 2, '# of frames before predictions.')
 flags.DEFINE_integer('use_state', 1,
                      'Whether or not to give the state+action to the model')
 
-flags.DEFINE_string('model', 'resnet50',
+flags.DEFINE_string('model', 'resnet_v1_50',
                     'model architecture to use - prediction, prednet')
 
 flags.DEFINE_string('optimizer', 'ADAM',
@@ -62,10 +66,19 @@ flags.DEFINE_float('train_val_split', 0.95,
                    'The percentage of files to use for the training set,'
                    ' vs. the validation set.')
 
+flags.DEFINE_float('weight_decay', 0.0001,
+                   'Regularizer weight decay')
+
+flags.DEFINE_float('batch_norm_decay', 0.9,
+                   'Batch norm decay')
+
 flags.DEFINE_float('gpu_memory_fraction', 1.0,
                    'gpu percentage')
 
 flags.DEFINE_integer('batch_size', 128, 'batch size for training')
+flags.DEFINE_integer('print_interval', 10, 'print_interval')
+flags.DEFINE_integer('val_start', VAL_INTERVAL-1, 'Validation Start')
+
 flags.DEFINE_float('learning_rate', 0.001,
                    'the base learning rate of the generator')
 
@@ -86,6 +99,10 @@ flags.DEFINE_string(
 flags.DEFINE_boolean(
     'ignore_missing_vars', True,
     'When restoring a checkpoint would ignore missing variables.')
+flags.DEFINE_boolean(
+    'partial_bn', False,
+    'Whether or not using partial batch_norm')
+
 
 from data.ucf101_img_input import build_tfrecord_input
 from data.ucf101_img_input import build_tfrecord_input_val
@@ -142,19 +159,19 @@ def main(unused_argv):
     for itr in range(0,FLAGS.num_iterations):
 
       cost, _, summary_str, acc, learning_rate = sess.run([model.cross_entropy, model.train_op, model.summary_op, model.accuracy, model.learning_rate])
-      if itr % 10 == 0:
+      if itr % FLAGS.print_interval == 0:
         tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc) + ', Learning Rate is ' + str(learning_rate))
 
-      if (itr) % VAL_INTERVAL == VAL_INTERVAL - 1:
+      if (itr) % VAL_INTERVAL ==  FLAGS.val_start:
         print('Running Validation Now')
         val_acc = []
         for val_itr in range(200):
           summary_str, acc = sess.run([val_model.summary_op, val_model.accuracy])
           val_acc.append(acc)
-          if val_itr % 10 == 0:
+          if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', acc ' + str(acc) + ' , Accuracy ' + str(np.mean(val_acc)))
 
-      if (itr) % SAVE_INTERVAL == SAVE_INTERVAL-1:
+      if (itr) % SAVE_INTERVAL == SAVE_INTERVAL-20:
         tf.logging.info('Saving model.')
         saver.save(sess,  os.path.join(os.path.expanduser(saver_dir), 'model' + str(itr)))
 

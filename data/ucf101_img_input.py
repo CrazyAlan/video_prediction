@@ -130,7 +130,7 @@ def build_tfrecord_input_val(training=False):
         [images, labels],
         1,
         num_threads=NROF_VAL_SAMPLES,
-        capacity=15)
+        capacity=FLAGS.val_capacity)
 
     image_batch = tf.reshape(image_batch, [NROF_VAL_SAMPLES*10, OUT_HEIGHT,OUT_WIDTH,3])
     label_batch = tf.reshape(label_batch, [NROF_VAL_SAMPLES*10])
@@ -187,7 +187,7 @@ def build_tfrecord_input(training=True):
             [image, label],
             FLAGS.batch_size,
             num_threads=32,
-            capacity=100 * FLAGS.batch_size)
+            capacity=10 * FLAGS.batch_size)
     
     return image_batch, label_batch
 

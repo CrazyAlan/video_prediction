@@ -172,15 +172,19 @@ class Model(object):
 
     learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step,
                                            2000, 0.1, staircase=True)
-    # network_fn = nets_factory.get_network_fn(
-    #     FLAGS.model,
-    #     num_classes=101,
-    #     weight_decay=FLAGS.weight_decay,
-    #     is_training=True)
+
 
     if reuse is None:    
-      with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, is_training=False, partial_bn=True)
+      network_fn = nets_factory.get_network_fn(
+        FLAGS.model,
+        num_classes=FLAGS.nrof_classes,
+        partial_bn=FLAGS.partial_bn,
+        is_training= not FLAGS.partial_bn,
+        weight_decay=FLAGS.weight_decay,
+        batch_norm_decay = FLAGS.batch_norm_decay)
+
+      net, end_points = network_fn(images)
+
       # import pdb
       # pdb.set_trace()
       init_from_checkpoint = _get_init_fn()
@@ -195,15 +199,21 @@ class Model(object):
       accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     else:
-      with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, is_training=False,reuse=True)
+      network_fn = nets_factory.get_network_fn(
+        FLAGS.model,
+        num_classes=FLAGS.nrof_classes,
+        is_training=False,
+        reuse=True,
+        weight_decay=FLAGS.weight_decay)
 
-        logits_mean = tf.reshape(tf.reduce_mean(net, 0), [1,-1])
-        # import pdb
-        # pdb.set_trace()
-        single_prediction = slim.softmax(logits_mean, scope='single_predictions')
-        correct_prediction = tf.equal(tf.argmax(tf.squeeze(single_prediction),0), tf.argmax(labels[0],0))
-        accuracy = tf.squeeze(tf.cast(correct_prediction, tf.float32))
+      net, end_points = network_fn(images)
+
+      logits_mean = tf.reshape(tf.reduce_mean(net, 0), [1,-1])
+      # import pdb
+      # pdb.set_trace()
+      single_prediction = slim.softmax(logits_mean, scope='single_predictions')
+      correct_prediction = tf.equal(tf.argmax(tf.squeeze(single_prediction),0), tf.argmax(labels[0],0))
+      accuracy = tf.squeeze(tf.cast(correct_prediction, tf.float32))
       # cross_entropy = tf.losses.softmax_cross_entropy(
       #   labels,tf.squeeze(net))
 
