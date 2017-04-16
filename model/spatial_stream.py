@@ -7,6 +7,8 @@ from tensorflow.python.platform import flags
 
 from tensorflow.python.ops import control_flow_ops
 from slim.nets import resnet_v1
+from slim.nets import nets_factory
+
 slim = tf.contrib.slim
 
 FLAGS = flags.FLAGS
@@ -170,10 +172,15 @@ class Model(object):
 
     learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step,
                                            2000, 0.1, staircase=True)
+    # network_fn = nets_factory.get_network_fn(
+    #     FLAGS.model,
+    #     num_classes=101,
+    #     weight_decay=FLAGS.weight_decay,
+    #     is_training=True)
 
     if reuse is None:    
       with slim.arg_scope(resnet_v1.resnet_arg_scope()):
-        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes)
+        net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, is_training=False, partial_bn=True)
       # import pdb
       # pdb.set_trace()
       init_from_checkpoint = _get_init_fn()

@@ -121,6 +121,7 @@ def resnet_v1(inputs,
               include_root_block=True,
               spatial_squeeze=True,
               reuse=None,
+              partial_bn=False,
               scope=None):
   """Generator for v1 ResNet models.
 
@@ -191,7 +192,10 @@ def resnet_v1(inputs,
             if output_stride % 4 != 0:
               raise ValueError('The output_stride needs to be a multiple of 4.')
             output_stride /= 4
-          net = resnet_utils.conv2d_same(net, 64, 7, stride=2, scope='conv1')
+
+          with slim.arg_scope([slim.batch_norm], is_training=partial_bn or is_training):  
+            net = resnet_utils.conv2d_same(net, 64, 7, stride=2, scope='conv1')
+          
           net = slim.max_pool2d(net, [3, 3], stride=2, scope='pool1')
         net = resnet_utils.stack_blocks_dense(net, blocks, output_stride)
         if global_pool:
@@ -216,6 +220,7 @@ def resnet_v1_50(inputs,
                  global_pool=True,
                  output_stride=None,
                  reuse=None,
+                 partial_bn=False,
                  scope='resnet_v1_50'):
   """ResNet-50 model of [1]. See resnet_v1() for arg and return description."""
   blocks = [
@@ -230,7 +235,7 @@ def resnet_v1_50(inputs,
   ]
   return resnet_v1(inputs, blocks, num_classes, is_training,
                    global_pool=global_pool, output_stride=output_stride,
-                   include_root_block=True, reuse=reuse, scope=scope)
+                   include_root_block=True, reuse=reuse, partial_bn=partial_bn, scope=scope)
 resnet_v1_50.default_image_size = resnet_v1.default_image_size
 
 
