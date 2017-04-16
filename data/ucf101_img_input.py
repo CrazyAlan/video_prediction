@@ -85,50 +85,55 @@ def get_image_paths_and_labels(list_dir, split='1', training=True):
         if not training:
             fileseq, labelsseq = np.asarray(fileseq), np.asarray(labelsseq)
             fileseq, labelsseq = np.transpose(fileseq,[1,0,2]), np.transpose(labelsseq,[1,0,2])
-            fileseq, labelsseq = np.reshape(fileseq,[-1]), np.reshape(labelsseq,[-1])
+            fileseq, labelsseq = np.reshape(fileseq,[-1, NROF_VAL_SAMPLES]), np.reshape(labelsseq,[-1, NROF_VAL_SAMPLES])
             fileseq, labelsseq = list(fileseq), list(labelsseq)
 
     return fileseq, labelsseq
 
 def build_tfrecord_input_val(training=False):
     fileseq, labelsseq = get_image_paths_and_labels(list_dir, training=training)
-    input_queue = tf.train.input_producer(np.asarray(np.transpose([fileseq, labelsseq], (1,0))), shuffle=True)
+    input_queue = tf.train.input_producer(np.asarray(np.transpose([fileseq, labelsseq], (1,2,0))), shuffle=True)
 
     fileinfo = input_queue.dequeue()
     
-    filename = fileinfo[0]
-    label = fileinfo[1]
+    filenames = fileinfo[:,0]
+    label = fileinfo[:,1]
+
     images = []
 
-    file_contents = tf.read_file(filename)
-    image = tf.image.decode_jpeg(file_contents)
-    image = tf.expand_dims(image, 0)
-    image = tf.image.resize_bilinear(image, [IMG_HEIGHT, IMG_WIDTH])
-    image = tf.reshape(image, [IMG_HEIGHT, IMG_WIDTH, 3])
+    for filename in tf.unstack(filenames):
 
-    for i in range(5):
-        tmp = tf.image.crop_to_bounding_box(image, crop_size[i][0], crop_size[i][1], crop_size[i][2], crop_size[i][3])
-        
-        tmp = tf.cast(tmp, tf.float32) / 255.0
-        tmp = tf.image.per_image_standardization(tmp)    
-        tmp = tf.reshape(tmp, [1, crop_size[i][2], crop_size[i][3], 3])
-        tmp = tf.image.resize_bilinear(tmp, [OUT_HEIGHT, OUT_WIDTH])
-        tmp = tf.reshape(tmp, [OUT_HEIGHT, OUT_WIDTH, 3])
+        file_contents = tf.read_file(filename)
+        image = tf.image.decode_jpeg(file_contents)
+        image = tf.expand_dims(image, 0)
+        image = tf.image.resize_bilinear(image, [IMG_HEIGHT, IMG_WIDTH])
+        image = tf.reshape(image, [IMG_HEIGHT, IMG_WIDTH, 3])
 
-        images.append(tmp)
-        tmp = tf.image.flip_left_right(tmp)
-        images.append(tmp)
+        for i in range(5):
+            tmp = tf.image.crop_to_bounding_box(image, crop_size[i][0], crop_size[i][1], crop_size[i][2], crop_size[i][3])
+            
+            tmp = tf.cast(tmp, tf.float32) / 255.0
+            tmp = tf.image.per_image_standardization(tmp)    
+            tmp = tf.reshape(tmp, [1, crop_size[i][2], crop_size[i][3], 3])
+            tmp = tf.image.resize_bilinear(tmp, [OUT_HEIGHT, OUT_WIDTH])
+            tmp = tf.reshape(tmp, [OUT_HEIGHT, OUT_WIDTH, 3])
 
+            images.append(tmp)
+            tmp = tf.image.flip_left_right(tmp)
+            images.append(tmp)
+
+    # labels = 10*25
     labels = 10*[label]
+    labels = tf.reshape(labels,[NROF_VAL_SAMPLES*10,-1])
 
-    image_batch, label_batch = tf.train.batch(
-        [images, labels],
-        NROF_VAL_SAMPLES,
-        num_threads=NROF_VAL_SAMPLES,
-        capacity=100 * NROF_VAL_SAMPLES)
+    # image_batch, label_batch = tf.train.batch(
+    #     [images, labels],
+    #     1,
+    #     num_threads=NROF_VAL_SAMPLES,
+    #     capacity=10 * NROF_VAL_SAMPLES)
 
-    image_batch = tf.reshape(image_batch, [NROF_VAL_SAMPLES*10, OUT_HEIGHT,OUT_WIDTH,3])
-    label_batch = tf.reshape(label_batch, [NROF_VAL_SAMPLES*10])
+    image_batch = tf.reshape(images, [NROF_VAL_SAMPLES*10, OUT_HEIGHT,OUT_WIDTH,3])
+    label_batch = tf.reshape(labels, [NROF_VAL_SAMPLES*10])
 
     # import pdb
     # pdb.set_trace()

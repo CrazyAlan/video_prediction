@@ -148,19 +148,17 @@ def main(unused_argv):
       cost, _, summary_str, acc = sess.run([model.cross_entropy, model.train_op, model.summary_op, model.accuracy])
       tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
 
-      if (itr) % VAL_INTERVAL == 900:
+      if (itr) % VAL_INTERVAL == 1:
         print('Should run the validation now')
         val_acc = []
         val_cost = []
-        for val_itr in range(50):
-          cost, summary_str, acc = sess.run([val_model.cross_entropy, val_model.summary_op, val_model.accuracy])
-          print('Val image', val_itr, 'acc ', acc, 'cost ', cost)
+        for val_itr in range(4000):
+          summary_str, acc = sess.run([val_model.summary_op, val_model.accuracy])
           val_acc.append(acc)
-          val_cost.append(cost)
-
-        cost = np.mean(val_cost)
+          print('Val image', val_itr, 'acc ', acc, 'Mean is', np.mean(val_acc))
+          
         acc = np.mean(val_acc)
-        tf.logging.info('  Validation Error ' + ', Cost ' + str(cost) + ', Accuracy ' + str(acc))
+        tf.logging.info('  Validation Error ' + ', Accuracy ' + str(acc))
 
       if (itr) % SAVE_INTERVAL == SAVE_INTERVAL-1:
         tf.logging.info('Saving model.')

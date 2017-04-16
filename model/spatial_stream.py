@@ -181,14 +181,27 @@ class Model(object):
                      FLAGS.optimizer, FLAGS.learning_rate, 
                      0.9999, _get_variables_to_train()) 
 
+      correct_prediction = tf.equal(tf.argmax(tf.squeeze(end_points['predictions']),1), tf.argmax(labels,1))
+      accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
     else:
       with slim.arg_scope(resnet_v1.resnet_arg_scope()):
         net, end_points = resnet_v1.resnet_v1_50(images, FLAGS.nrof_classes, is_training=False,reuse=True)
-      cross_entropy = tf.losses.softmax_cross_entropy(
-        labels,tf.squeeze(net))
+
+        logits_mean = tf.reshape(tf.reduce_mean(net, 0), [1,-1])
+        # import pdb
+        # pdb.set_trace()
+        single_prediction = slim.softmax(logits_mean, scope='single_predictions')
+        correct_prediction = tf.equal(tf.argmax(tf.squeeze(single_prediction),0), tf.argmax(labels[0],0))
+        accuracy = tf.squeeze(tf.cast(correct_prediction, tf.float32))
+      # cross_entropy = tf.losses.softmax_cross_entropy(
+      #   labels,tf.squeeze(net))
+
+      # correct_prediction = tf.equal(tf.argmax(tf.squeeze(end_points['predictions']),1), tf.argmax(labels,1))
+      # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
     
-    correct_prediction = tf.equal(tf.argmax(tf.squeeze(end_points['predictions']),1), tf.argmax(labels,1))
-    accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+    # correct_prediction = tf.equal(tf.argmax(tf.squeeze(end_points['predictions']),1), tf.argmax(labels,1))
+    # accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     summary_op = tf.summary.merge_all()
 
