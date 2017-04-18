@@ -35,6 +35,7 @@ flags.DEFINE_string('gif_dir', '/cs/vml4/xca64/robot_data/gif/' , 'directory gif
 flags.DEFINE_integer('gif_nums', 5 , 'number of gif files to save')
 flags.DEFINE_string('event_log_dir',SUM_DIR, 'directory for writing summary.')
 flags.DEFINE_integer('num_iterations', 4500, 'number of training iterations.')
+flags.DEFINE_integer('decay_step', 2000, 'number of steps to decrease the learning rate')
 flags.DEFINE_integer('test_images', 3783, 'number of training iterations.')
 flags.DEFINE_string('pretrained_model', '' ,
                     'filepath of a pretrained model to initialize from.')
@@ -191,7 +192,7 @@ def main(unused_argv):
     tf.logging.info('Saving model.')
     saver.save(sess, os.path.join(os.path.expanduser(saver_dir), 'model'))
     tf.logging.info('Training complete')
-    tf.logging.flush()
+    #tf.logging.flush()
 
 if __name__ == '__main__':
   app.run()

@@ -171,7 +171,7 @@ class Model(object):
     cross_entropy = None
 
     learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step,
-                                           2000, 0.1, staircase=True)
+                                           FLAGS.decay_step, 0.1, staircase=True)
 
 
     if reuse is None:    

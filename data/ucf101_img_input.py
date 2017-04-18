@@ -187,7 +187,7 @@ def build_tfrecord_input(training=True):
             [image, label],
             FLAGS.batch_size,
             num_threads=32,
-            capacity=10 * FLAGS.batch_size)
+            capacity=10)
     
     return image_batch, label_batch
 
