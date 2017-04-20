@@ -39,9 +39,47 @@ def _add_loss_summaries(total_loss):
   
     return loss_averages_op
 
+def average_gradients(tower_grads):
+  """Calculate the average gradient for each shared variable across all towers.
+  Note that this function provides a synchronization point across all towers.
+  Args:
+    tower_grads: List of lists of (gradient, variable) tuples. The outer list
+      is over individual gradients. The inner list is over the gradient
+      calculation for each tower.
+  Returns:
+     List of pairs of (gradient, variable) where the gradient has been averaged
+     across all towers.
+  """
+  average_grads = []
+  for grad_and_vars in zip(*tower_grads):
+    # Note that each grad_and_vars looks like the following:
+    #   ((grad0_gpu0, var0_gpu0), ... , (grad0_gpuN, var0_gpuN))
+    grads = []
+    for g, _ in grad_and_vars:
+      # Add 0 dimension to the gradients to represent the tower.
+      
+      # expanded_g = tf.expand_dims(g, 0)
+
+      # Append on a 'tower' dimension which we will average over below.
+      grads.append(g)
+
+    # Average over the 'tower' dimension.
+    # grad = tf.concat(0, grads)
+    # import pdb
+    # pdb.set_trace()
+    grad = tf.reduce_mean(grads, 0)
+
+    # Keep in mind that the Variables are redundant because they are shared
+    # across towers. So .. we will just return the first tower's pointer to
+    # the Variable.
+    v = grad_and_vars[0][1]
+    grad_and_var = (grad, v)
+    average_grads.append(grad_and_var)
+  return average_grads
+
 def train(total_loss, global_step, optimizer, learning_rate, moving_average_decay, update_gradient_vars, log_histograms=True):
     # Generate moving averages of all losses and associated summaries.
-    loss_averages_op = _add_loss_summaries(total_loss)
+    loss_averages_op = _add_loss_summaries(tf.reduce_mean(total_loss,0))
 
     # Compute gradients.
     with tf.control_dependencies([loss_averages_op]):
@@ -58,10 +96,13 @@ def train(total_loss, global_step, optimizer, learning_rate, moving_average_deca
         else:
             raise ValueError('Invalid optimization algorithm')
     
-        grads = opt.compute_gradients(total_loss, update_gradient_vars)
-        
+    grads = []   
+    for loss in total_loss:
+      grads.append(opt.compute_gradients(loss, update_gradient_vars))
+    
+    grads_mean = average_gradients(grads)
     # Apply gradients.
-    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+    apply_gradient_op = opt.apply_gradients(grads_mean, global_step=global_step)
   
     # Add histograms for trainable variables.
     if log_histograms:
@@ -70,7 +111,7 @@ def train(total_loss, global_step, optimizer, learning_rate, moving_average_deca
    
     # Add histograms for gradients.
     if log_histograms:
-        for grad, var in grads:
+        for grad, var in grads_mean:
             if grad is not None:
                 tf.summary.histogram(var.op.name + '/gradients', grad)
     # import pdb
@@ -183,30 +224,43 @@ class Model(object):
         weight_decay=FLAGS.weight_decay,
         batch_norm_decay = FLAGS.batch_norm_decay)
 
-      net, end_points = network_fn(images)
+      images_batch = tf.split(images, num_or_size_splits=FLAGS.batch_size/FLAGS.sub_batch_size, axis=0)
+      labels_batch = tf.split(labels, num_or_size_splits=FLAGS.batch_size/FLAGS.sub_batch_size, axis=0)
 
-      # import pdb
-      # pdb.set_trace()
+      train_loss = []
+      # correct_prediction = []
+      accuracy = 0.0
+
+      for i in range(FLAGS.batch_size/FLAGS.sub_batch_size):
+        if i == 0:
+          net, end_points = network_fn(images_batch[i])
+        else:
+          net, end_points = network_fn(images_batch[i], reuse=True)
+        cross_entropy = tf.losses.softmax_cross_entropy(
+          labels_batch[i],tf.squeeze(net))
+
+        correct_prediction = tf.equal(tf.argmax(tf.squeeze(end_points['predictions']),1), tf.argmax(labels_batch[i],1))
+        accuracy += tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+        train_loss.append(cross_entropy)
+
       init_from_checkpoint = _get_init_fn()
 
-      cross_entropy = tf.losses.softmax_cross_entropy(
-        labels,tf.squeeze(net))
-      train_op = train(cross_entropy, global_step,
+      train_op = train(train_loss, global_step,
                      FLAGS.optimizer, learning_rate, 
                      0.9999, _get_variables_to_train()) 
+      
+      accuracy /= (FLAGS.batch_size/FLAGS.sub_batch_size)
 
-      correct_prediction = tf.equal(tf.argmax(tf.squeeze(end_points['predictions']),1), tf.argmax(labels,1))
-      accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
     else:
       network_fn = nets_factory.get_network_fn(
         FLAGS.model,
         num_classes=FLAGS.nrof_classes,
         is_training=False,
-        reuse=True,
         weight_decay=FLAGS.weight_decay)
 
-      net, end_points = network_fn(images)
+      net, end_points = network_fn(images, reuse=True)
 
       logits_mean = tf.reshape(tf.reduce_mean(net, 0), [1,-1])
       # import pdb

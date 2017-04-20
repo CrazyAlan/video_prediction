@@ -76,7 +76,9 @@ flags.DEFINE_float('batch_norm_decay', 0.9,
 flags.DEFINE_float('gpu_memory_fraction', 1.0,
                    'gpu percentage')
 
-flags.DEFINE_integer('batch_size', 128, 'batch size for training')
+flags.DEFINE_integer('batch_size', 256, 'batch size for training')
+flags.DEFINE_integer('sub_batch_size', 8, 'batch size for training')
+
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
 flags.DEFINE_integer('val_start', VAL_INTERVAL-1, 'Validation Start')
 
