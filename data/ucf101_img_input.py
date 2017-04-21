@@ -166,8 +166,6 @@ def build_tfrecord_input_val(training=False):
     image_batch = tf.reshape(image_batch, [NROF_VAL_SAMPLES*10, OUT_HEIGHT,OUT_WIDTH,3])
     label_batch = tf.reshape(label_batch, [NROF_VAL_SAMPLES*10])
 
-    # import pdb
-    # pdb.set_trace()
 
     return image_batch, label_batch
 

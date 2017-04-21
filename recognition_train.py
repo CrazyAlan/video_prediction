@@ -11,11 +11,7 @@ from tensorflow.python.platform import flags
 # How often to record tensorboard summaries.
 SUMMARY_INTERVAL = 40
 
-# How often to run a batch through the validation model.
-VAL_INTERVAL = 1500
-
 # How often to save a model checkpoint
-SAVE_INTERVAL = 1500
 
 # tf record data location:
 DATA_DIR = '/home/xca64/vml4/dataset/ucf101/ucf101_imgs'
@@ -82,6 +78,9 @@ flags.DEFINE_integer('sub_batch_size', 8, 'batch size for training')
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
 flags.DEFINE_integer('VAL_INTERVAL', 1000, 'Validation Start')
 flags.DEFINE_integer('val_start',FLAGS.VAL_INTERVAL/2 , 'Validation Start')
+flags.DEFINE_integer('SAVE_INTERVAL', 2500, 'Save Interval')
+
+
 
 flags.DEFINE_float('learning_rate', 0.001,
                    'the base learning rate of the generator')
@@ -182,7 +181,7 @@ def main(unused_argv):
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', acc ' + str(acc) + ' , Accuracy ' + str(np.mean(val_acc)))
 
-      if (itr) % SAVE_INTERVAL == SAVE_INTERVAL-20:
+      if (itr) % FLAGS.SAVE_INTERVAL == FLAGS.SAVE_INTERVAL-20:
         tf.logging.info('Saving model.')
         saver.save(sess,  os.path.join(os.path.expanduser(saver_dir), 'model' + str(itr)))
 
@@ -197,6 +196,7 @@ def main(unused_argv):
       val_acc.append(acc)
       if val_itr % 10 == 0:
         tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', acc ' + str(acc) + ' , Accuracy ' + str(np.mean(val_acc)))
+    tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', Accuracy ' + str(np.mean(val_acc)))
 
 
     tf.logging.info('Saving model.')
