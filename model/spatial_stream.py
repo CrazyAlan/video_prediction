@@ -249,8 +249,11 @@ class Model(object):
       train_op = train(train_loss, global_step,
                      FLAGS.optimizer, learning_rate, 
                      0.9999, _get_variables_to_train()) 
-      
+
       accuracy /= (FLAGS.batch_size/FLAGS.sub_batch_size)
+      
+      tf.summary.scalar('train_acc', accuracy)
+      self.cross_entropy = tf.reduce_mean(train_loss,0)
 
 
     else:
@@ -268,6 +271,9 @@ class Model(object):
       single_prediction = slim.softmax(logits_mean, scope='single_predictions')
       correct_prediction = tf.equal(tf.argmax(tf.squeeze(single_prediction),0), tf.argmax(labels[0],0))
       accuracy = tf.squeeze(tf.cast(correct_prediction, tf.float32))
+
+      tf.summary.scalar('val_acc', accuracy)
+  
       # cross_entropy = tf.losses.softmax_cross_entropy(
       #   labels,tf.squeeze(net))
 
@@ -281,7 +287,6 @@ class Model(object):
 
     self.init_from_checkpoint = init_from_checkpoint
     self.accuracy = accuracy
-    self.cross_entropy = cross_entropy
     self.train_op = train_op
     self.summary_op = summary_op
     self.learning_rate = learning_rate

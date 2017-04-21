@@ -12,10 +12,10 @@ from tensorflow.python.platform import flags
 SUMMARY_INTERVAL = 40
 
 # How often to run a batch through the validation model.
-VAL_INTERVAL = 2000
+VAL_INTERVAL = 1500
 
 # How often to save a model checkpoint
-SAVE_INTERVAL = 1000
+SAVE_INTERVAL = 1500
 
 # tf record data location:
 DATA_DIR = '/home/xca64/vml4/dataset/ucf101/ucf101_imgs'
@@ -70,7 +70,7 @@ flags.DEFINE_float('train_val_split', 0.95,
 flags.DEFINE_float('weight_decay', 0.0001,
                    'Regularizer weight decay')
 
-flags.DEFINE_float('batch_norm_decay', 0.9,
+flags.DEFINE_float('batch_norm_decay', 0.997,
                    'Batch norm decay')
 
 flags.DEFINE_float('gpu_memory_fraction', 1.0,
@@ -80,7 +80,8 @@ flags.DEFINE_integer('batch_size', 256, 'batch size for training')
 flags.DEFINE_integer('sub_batch_size', 8, 'batch size for training')
 
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
-flags.DEFINE_integer('val_start', VAL_INTERVAL-1, 'Validation Start')
+flags.DEFINE_integer('VAL_INTERVAL', 1000, 'Validation Start')
+flags.DEFINE_integer('val_start',FLAGS.VAL_INTERVAL/2 , 'Validation Start')
 
 flags.DEFINE_float('learning_rate', 0.001,
                    'the base learning rate of the generator')
@@ -131,11 +132,18 @@ def main(unused_argv):
    
     
     print('Constructing saver.')
+    time_info = datetime.now().strftime('%Y-%m-%d-%H%M%S')
+    base_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info)
+    if not os.path.isdir(base_dir):
+      os.makedirs(base_dir)
+
+    with open(os.path.join(base_dir, 'params.txt'), 'w') as f:
+        for key, value in FLAGS.__flags.iteritems():
+            f.write(str(key) + ':' + str(value) + '\n')    
     # Make saver.
     saver = tf.train.Saver(
         tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES), max_to_keep=0)
-    time_info = datetime.now().strftime('%Y-%m-%d-%H%M%S')
-    saver_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info, 'checkpoints')
+    saver_dir = os.path.join(base_dir, 'checkpoints')
     if not os.path.isdir(saver_dir):
       os.makedirs(saver_dir)
 
@@ -144,7 +152,7 @@ def main(unused_argv):
     
     # sess = tf.Session()
 
-    summary_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info, 'summaries')
+    summary_dir = os.path.join(base_dir, 'summaries')
     if os.path.isdir(summary_dir):
       os.makedirs(summary_dir)
     summary_writer = tf.summary.FileWriter(
@@ -165,10 +173,10 @@ def main(unused_argv):
       if itr % FLAGS.print_interval == 0:
         tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc) + ', Learning Rate is ' + str(learning_rate))
 
-      if (itr) % VAL_INTERVAL ==  FLAGS.val_start:
+      if (itr) % FLAGS.VAL_INTERVAL ==  FLAGS.val_start:
         print('Running Validation Now')
         val_acc = []
-        for val_itr in range(200):
+        for val_itr in range(100):
           summary_str, acc = sess.run([val_model.summary_op, val_model.accuracy])
           val_acc.append(acc)
           if val_itr % FLAGS.print_interval == 0:
@@ -184,7 +192,7 @@ def main(unused_argv):
     ## Final Validation
     print('Running Final Validation Now')
     val_acc = []
-    for val_itr in range(3500):
+    for val_itr in range(FLAGS.test_images):
       acc = sess.run([val_model.accuracy])
       val_acc.append(acc)
       if val_itr % 10 == 0:

@@ -22,6 +22,8 @@ IMG_HEIGHT = 256
 OUT_WIDTH = 224
 OUT_HEIGHT = 224
 
+IMAGENET_MEANS = [123.68, 116.779, 103.939]
+
 crop_size = []
 for i in [256,224,192,168]:
     crop_size.append([0,0,i,i])
@@ -38,10 +40,38 @@ NROF_VAL_SEGMENTS = 10
 data_dir = '/cs/vml4/xca64/dataset/ucf101/ucf101_imgs/'
 list_dir = '/home/xca64/vml4/github/video_prediction/data/ucfTrainTestlist'
 
-def flip(image, random_flip):
-    if random_flip and np.random.choice([True, False]):
-        image = np.fliplr(image)
-    return image
+def _mean_image_subtraction(image, means):
+  """Subtracts the given means from each image channel.
+
+  For example:
+    means = [123.68, 116.779, 103.939]
+    image = _mean_image_subtraction(image, means)
+
+  Note that the rank of `image` must be known.
+
+  Args:
+    image: a tensor of size [height, width, C].
+    means: a C-vector of values to subtract from each channel.
+
+  Returns:
+    the centered image.
+
+  Raises:
+    ValueError: If the rank of `image` is unknown, if `image` has a rank other
+      than three or if the number of channels in `image` doesn't match the
+      number of values in `means`.
+  """
+  if image.get_shape().ndims != 3:
+    raise ValueError('Input must be of size [height, width, C>0]')
+  num_channels = image.get_shape().as_list()[-1]
+  if len(means) != num_channels:
+    raise ValueError('len(means) must match the number of channels')
+
+  channels = tf.split(axis=2, num_or_size_splits=num_channels, value=image)
+  for i in range(num_channels):
+    channels[i] -= means[i]
+  return tf.concat(axis=2, values=channels)
+
 
 
 
@@ -92,10 +122,10 @@ def get_image_paths_and_labels(list_dir, split='1', training=True):
 
 def build_tfrecord_input_val(training=False):
     fileseq, labelsseq = get_image_paths_and_labels(list_dir, training=training)
-    input_queue = tf.train.input_producer(np.asarray(np.transpose([fileseq, labelsseq], (1,2,0))), shuffle=True)
+    input_queue = tf.train.input_producer(np.asarray(np.transpose([fileseq, labelsseq], (1,2,0))), shuffle=False)
 
     fileinfo = input_queue.dequeue()
-    
+    imagenet_mean = tf.constant([123.68, 116.779, 103.939])    
     filenames = fileinfo[:,0]
     label = fileinfo[:,1]
 
@@ -111,9 +141,10 @@ def build_tfrecord_input_val(training=False):
 
         for i in range(5):
             tmp = tf.image.crop_to_bounding_box(image, crop_size[i][0], crop_size[i][1], crop_size[i][2], crop_size[i][3])
-            
-            tmp = tf.cast(tmp, tf.float32) / 255.0
-            tmp = tf.image.per_image_standardization(tmp)    
+            # Reduce Mean and Cast Image
+            tmp = _mean_image_subtraction(tf.cast(tmp, tf.float32), IMAGENET_MEANS)            
+            # tmp = tf.cast(tmp, tf.float32) / 255.0
+            # tmp = tf.image.per_image_standardization(tmp)    
             tmp = tf.reshape(tmp, [1, crop_size[i][2], crop_size[i][3], 3])
             tmp = tf.image.resize_bilinear(tmp, [OUT_HEIGHT, OUT_WIDTH])
             tmp = tf.reshape(tmp, [OUT_HEIGHT, OUT_WIDTH, 3])
@@ -173,8 +204,10 @@ def build_tfrecord_input(training=True):
         image = tf.image.crop_to_bounding_box(image, crop_size_tf[box_indx][0], crop_size_tf[box_indx][1], crop_size_tf[box_indx][2], crop_size_tf[box_indx][3])
 
         # Reduce Mean and Cast Image
-        image = tf.cast(image, tf.float32) / 255.0
-        image = tf.image.per_image_standardization(image)    
+        image = _mean_image_subtraction(tf.cast(image, tf.float32), IMAGENET_MEANS)
+
+        # image /=  255.0
+        # image = tf.image.per_image_standardization(image)    
 
         # Resize to 
         image = tf.reshape(image, [1, crop_size_tf[box_indx][2], crop_size_tf[box_indx][3], 3])
