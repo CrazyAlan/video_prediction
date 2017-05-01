@@ -99,10 +99,19 @@ def train(total_loss, global_step, optimizer, learning_rate, moving_average_deca
     grads = []   
     for loss in total_loss:
       grads.append(opt.compute_gradients(loss, update_gradient_vars))
-    
     grads_mean = average_gradients(grads)
+
+    # Accumunate grads
+    accum_vars = [tf.Variable(tf.zeros_like(tv.initialized_value()), trainable=False) for tv in update_gradient_vars]                                        
+    zero_ops = [tv.assign(tf.zeros_like(tv)) for tv in accum_vars]
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
+    with tf.control_dependencies(update_ops):
+      accum_ops = [accum_vars[i].assign_add(gv[0]) for i, gv in enumerate(grads_mean)]
+
+    accum_grads = zip(accum_vars, update_gradient_vars)
     # Apply gradients.
-    apply_gradient_op = opt.apply_gradients(grads_mean, global_step=global_step)
+    apply_gradient_op = opt.apply_gradients(accum_grads, global_step=global_step)
   
     # Add histograms for trainable variables.
     if log_histograms:
@@ -111,24 +120,21 @@ def train(total_loss, global_step, optimizer, learning_rate, moving_average_deca
    
     # Add histograms for gradients.
     if log_histograms:
-        for grad, var in grads_mean:
+        for grad, var in accum_grads:
             if grad is not None:
                 tf.summary.histogram(var.op.name + '/gradients', grad)
     # import pdb
     # pdb.set_trace()
 
     # Track the moving averages of all trainable variables.
-    variable_averages = tf.train.ExponentialMovingAverage(
-        moving_average_decay, global_step)
-    variables_averages_op = variable_averages.apply(tf.trainable_variables())
+    # variable_averages = tf.train.ExponentialMovingAverage(
+    #     moving_average_decay, global_step)
+    # variables_averages_op = variable_averages.apply(tf.trainable_variables())
 
-    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-
-    with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
-      with tf.control_dependencies(update_ops):
-        train_op = tf.no_op(name='train')
+    with tf.control_dependencies([apply_gradient_op]):
+      train_op = tf.no_op(name='train')
   
-    return train_op
+    return train_op, accum_ops, zero_ops
 
 def _get_variables_to_train():
   """Returns a list of variables to train.
@@ -210,6 +216,8 @@ class Model(object):
     init_from_checkpoint = None
     train_op = None
     cross_entropy = None
+    accum_ops = None
+    zero_ops = None
 
     learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step,
                                            FLAGS.decay_step, 0.1, staircase=True)
@@ -246,7 +254,7 @@ class Model(object):
 
       init_from_checkpoint = _get_init_fn()
 
-      train_op = train(train_loss, global_step,
+      train_op, accum_ops, zero_ops = train(train_loss, global_step,
                      FLAGS.optimizer, learning_rate, 
                      0.9999, _get_variables_to_train()) 
 
@@ -290,3 +298,5 @@ class Model(object):
     self.train_op = train_op
     self.summary_op = summary_op
     self.learning_rate = learning_rate
+    self.accum_ops = accum_ops
+    self.zero_ops = zero_ops

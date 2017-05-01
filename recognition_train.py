@@ -51,7 +51,7 @@ flags.DEFINE_integer('use_state', 1,
 flags.DEFINE_string('model', 'resnet_v1_50',
                     'model architecture to use - prediction, prednet')
 
-flags.DEFINE_string('optimizer', 'ADAM',
+flags.DEFINE_string('optimizer', 'MOM',
                     'model architecture to use - prediction, prednet')
 
 flags.DEFINE_integer('num_masks', 10,
@@ -69,16 +69,18 @@ flags.DEFINE_float('weight_decay', 0.0001,
 flags.DEFINE_float('batch_norm_decay', 0.997,
                    'Batch norm decay')
 
-flags.DEFINE_float('gpu_memory_fraction', 1.0,
+flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
-flags.DEFINE_integer('batch_size', 256, 'batch size for training')
+flags.DEFINE_integer('batch_size', 64, 'batch size for training')
+flags.DEFINE_integer('nrof_accum_batch', 1, 'number of times to accumulate the gradients')
 flags.DEFINE_integer('sub_batch_size', 8, 'batch size for training')
 
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
 flags.DEFINE_integer('VAL_INTERVAL', 1000, 'Validation Start')
 flags.DEFINE_integer('val_start',FLAGS.VAL_INTERVAL/2 , 'Validation Start')
 flags.DEFINE_integer('SAVE_INTERVAL', 2500, 'Save Interval')
+flags.DEFINE_integer('SUMMARY_INTERVAL', 40, 'Save Interval')
 
 
 
@@ -168,14 +170,26 @@ def main(unused_argv):
     # Run training.
     for itr in range(0,FLAGS.num_iterations):
 
-      cost, _, summary_str, acc, learning_rate = sess.run([model.cross_entropy, model.train_op, model.summary_op, model.accuracy, model.learning_rate])
+      # Running Training, accumunate grads before update
+      _ = sess.run([model.zero_ops])
+      train_cost = []
+      summary_str = None
+      train_acc = []
+      learning_rate = None 
+      for inner_itr in range(FLAGS.nrof_accum_batch):
+        cost, _,  summary_str, acc, learning_rate = sess.run([model.cross_entropy, model.accum_ops, model.summary_op, model.accuracy, model.learning_rate])
+        train_cost.append(cost)
+        train_acc.append(acc)
+      # Update Gradient 
+      _ = sess.run([model.train_op])
+
       if itr % FLAGS.print_interval == 0:
-        tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(cost) + ', Accuracy ' + str(acc) + ', Learning Rate is ' + str(learning_rate))
+        tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(np.mean(train_cost)) + ', Accuracy ' + str(np.mean(train_acc)) + ', Learning Rate is ' + str(learning_rate))
 
       if (itr) % FLAGS.VAL_INTERVAL ==  FLAGS.val_start:
         print('Running Validation Now')
         val_acc = []
-        for val_itr in range(100):
+        for val_itr in range(FLAGS.test_images):
           summary_str, acc = sess.run([val_model.summary_op, val_model.accuracy])
           val_acc.append(acc)
           if val_itr % FLAGS.print_interval == 0:
@@ -185,9 +199,13 @@ def main(unused_argv):
         tf.logging.info('Saving model.')
         saver.save(sess,  os.path.join(os.path.expanduser(saver_dir), 'model' + str(itr)))
 
-      if (itr) % SUMMARY_INTERVAL:
+      if (itr) % FLAGS.SUMMARY_INTERVAL:
         summary_writer.add_summary(summary_str, itr)
 
+    tf.logging.info('Saving model.')
+    saver.save(sess, os.path.join(os.path.expanduser(saver_dir), 'model'))
+    tf.logging.info('Training complete')
+    #tf.logging.flush()
     ## Final Validation
     print('Running Final Validation Now')
     val_acc = []
@@ -199,10 +217,6 @@ def main(unused_argv):
     tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', Accuracy ' + str(np.mean(val_acc)))
 
 
-    tf.logging.info('Saving model.')
-    saver.save(sess, os.path.join(os.path.expanduser(saver_dir), 'model'))
-    tf.logging.info('Training complete')
-    #tf.logging.flush()
 
 if __name__ == '__main__':
   app.run()
