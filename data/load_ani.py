@@ -6,12 +6,18 @@ from time import gmtime, strftime
 from numpy.random import choice
 import h5py
 import hdf5storage
+
+from tensorflow.python.platform import flags
+
+FLAGS = flags.FLAGS
+
+
 class Loader(object):
     """docstring for Loader"""
     def __init__(self):
         
         self.datadir = '/cs/vml4/xca64/github/visual-analogy-tensorflow/data';
-        self.batchsize = 20
+        self.batchsize = FLAGS.batch_size
         self.width = 60
         self.height = 60
         self.dim = 3
@@ -21,7 +27,7 @@ class Loader(object):
 
         self.trainfiles=[]
         for idx in self.trainidx:
-            path = os.path.join(os.path.expanduser(self.datadir),'sprites', 'sprites_'+str(idx)+'.mat')
+            path = os.path.join(os.path.expanduser(self.datadir),'sprites', 'sprites_'+str(idx-1)+'.mat')
             self.trainfiles.append(path)
 
     def fix_wpn(self, label, idx_anim):
