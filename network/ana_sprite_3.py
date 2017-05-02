@@ -96,3 +96,32 @@ def dec_mask(hid,
 			end_points = slim.utils.convert_collection_to_dict(end_points_collection)
 
 			return net, end_points
+
+def inc_net(trans,
+			query,
+			is_training=True,
+			scope='ana_sprite_3_inc_net',
+			reuse=None):
+	with tf.variable_scope(scope, 'ana_sprite_3_inc_net', [trans, query], reuse=reuse) as sc:
+		end_points_collection = sc.name + '_end_points'
+		with slim.arg_scope([slim.fully_connected],
+            outputs_collections=end_points_collection): 
+
+			net_1 = slim.fully_connected(trans, 300, scope='fc1_1', activation_fn=None)
+			net_2 = slim.fully_connected(query, 300, scope='fc1_2', activation_fn=None)
+			net = net_1 + net_2
+			net = tf.nn.relu(net, name=scope+'r1')
+			net = slim.fully_connected(net, 300, scope='fc2')
+			net = slim.fully_connected(net, 1024, scope = 'fc3')
+			
+			end_points = slim.utils.convert_collection_to_dict(end_points_collection)
+
+			# net = tf.multiply(swith, net, name='switch')
+			return net, end_points 
+	
+def ana_inc(out, ref, query, option='Add', reuse=None):
+  if option == 'Add':
+    inc = out - ref
+  elif option == 'Deep':
+  	inc, _ = inc_net(out-ref, query, reuse=reuse)
+  return inc

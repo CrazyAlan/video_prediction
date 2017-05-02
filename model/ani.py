@@ -16,7 +16,7 @@ FLAGS = flags.FLAGS
 if FLAGS.model == 'ana_sprite_3':
   from network import ana_sprite_3
   network = ana_sprite_3
-  
+
 def cost_con(X, M, Xt, Mt, masked=True):
   if masked:
     err_x = tf.multiply((X - Xt), Mt)
@@ -164,6 +164,7 @@ def _get_init_fn():
       ignore_missing_vars=FLAGS.ignore_missing_vars)
 
 
+
 class Model(object):
 
   def __init__(self,
@@ -187,7 +188,7 @@ class Model(object):
         query, _ = network.enc(batch_sprites[2], reuse=True)
 
         #Vector addition for analogy
-        top = out - ref + query;
+        top = query + network.ana_inc(out, ref, query, option='Deep')
 
         pred_masks, _ = network.dec_mask(top)
         pred_sprites, _ = network.dec_rgb(top)
@@ -205,7 +206,7 @@ class Model(object):
         query, _ = network.enc(batch_sprites[2], reuse=reuse)
 
         #Vector addition for analogy
-        top = out - ref + query;
+        top = query + network.ana_inc(out, ref, query, option='Deep', reuse=True)
 
         pred_masks, _ = network.dec_mask(top, reuse=reuse)
         pred_sprites, _ = network.dec_rgb(top, reuse=reuse)
