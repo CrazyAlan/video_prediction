@@ -45,7 +45,7 @@ flags.DEFINE_integer('context_frames', 2, '# of frames before predictions.')
 flags.DEFINE_integer('use_state', 1,
                      'Whether or not to give the state+action to the model')
 
-flags.DEFINE_string('model', 'ani',
+flags.DEFINE_string('model', 'ana_sprite_3',
                     'model architecture to use - prediction, prednet')
 
 flags.DEFINE_string('optimizer', 'ADAM',

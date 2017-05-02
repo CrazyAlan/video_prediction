@@ -9,12 +9,14 @@ from tensorflow.python.ops import control_flow_ops
 from slim.nets import resnet_v1
 from slim.nets import nets_factory
 
-from network import ana_sprite_3
-
 slim = tf.contrib.slim
 
 FLAGS = flags.FLAGS
 
+if FLAGS.model == 'ana_sprite_3':
+  from network import ana_sprite_3
+  network = ana_sprite_3
+  
 def cost_con(X, M, Xt, Mt, masked=True):
   if masked:
     err_x = tf.multiply((X - Xt), Mt)
@@ -170,7 +172,7 @@ class Model(object):
                global_step,
                reuse=None):
 
-    arg_scope = ana_sprite_3.arg_sco()
+    arg_scope = network.arg_sco()
 
     learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step,
                    FLAGS.decay_step, 0.1, staircase=True)
@@ -180,15 +182,15 @@ class Model(object):
     with slim.arg_scope(arg_scope):
       if reuse == None:
 
-        ref, _ = ana_sprite_3.enc(batch_sprites[0])
-        out, _ = ana_sprite_3.enc(batch_sprites[1], reuse=True)
-        query, _ = ana_sprite_3.enc(batch_sprites[2], reuse=True)
+        ref, _ = network.enc(batch_sprites[0])
+        out, _ = network.enc(batch_sprites[1], reuse=True)
+        query, _ = network.enc(batch_sprites[2], reuse=True)
 
         #Vector addition for analogy
         top = out - ref + query;
 
-        pred_masks, _ = ana_sprite_3.dec_mask(top)
-        pred_sprites, _ = ana_sprite_3.dec_rgb(top)
+        pred_masks, _ = network.dec_mask(top)
+        pred_sprites, _ = network.dec_rgb(top)
 
         # calculate cost
         cost = cost_con(pred_sprites, pred_masks, batch_sprites[3], batch_masks[3])
@@ -198,15 +200,15 @@ class Model(object):
                 0.9999, _get_variables_to_train())
       else:
 
-        ref, _ = ana_sprite_3.enc(batch_sprites[0], reuse=reuse)
-        out, _ = ana_sprite_3.enc(batch_sprites[1], reuse=reuse)
-        query, _ = ana_sprite_3.enc(batch_sprites[2], reuse=reuse)
+        ref, _ = network.enc(batch_sprites[0], reuse=reuse)
+        out, _ = network.enc(batch_sprites[1], reuse=reuse)
+        query, _ = network.enc(batch_sprites[2], reuse=reuse)
 
         #Vector addition for analogy
         top = out - ref + query;
 
-        pred_masks, _ = ana_sprite_3.dec_mask(top, reuse=reuse)
-        pred_sprites, _ = ana_sprite_3.dec_rgb(top, reuse=reuse)
+        pred_masks, _ = network.dec_mask(top, reuse=reuse)
+        pred_sprites, _ = network.dec_rgb(top, reuse=reuse)
 
         # calculate cost
         cost = cost_con(pred_sprites, pred_masks, batch_sprites[3], batch_masks[3])
