@@ -65,7 +65,7 @@ class Loader(object):
         batch_sprites = []
         batch_masks = []
 
-        for key in batch_sprites_dict:
+        for key in ['X1', 'X2', 'X3', 'X4']:
             batch_sprites.append(batch_sprites_dict[key])
             batch_masks.append(batch_masks_dict[key])
 
@@ -78,7 +78,7 @@ class Loader(object):
         batch_sprites = []
         batch_masks = []
 
-        for key in batch_sprites_dict:
+        for key in ['X1', 'X2', 'X3', 'X4']:
             batch_sprites.append(batch_sprites_dict[key])
             batch_masks.append(batch_masks_dict[key])
 
@@ -91,7 +91,7 @@ class Loader(object):
         batch_sprites = []
         batch_masks = []
 
-        for key in batch_sprites_dict:
+        for key in ['X1', 'X2', 'X3', 'X4']:
             batch_sprites.append(batch_sprites_dict[key])
             batch_masks.append(batch_masks_dict[key])
 
@@ -146,7 +146,8 @@ class Loader(object):
         batch_masks['X3'] = np.reshape(mask2[:,t1_idx], (self.width, self.height, 1, len(t1_idx)), order='F')
         batch_masks['X4'] = np.reshape(mask2[:,t2_idx], (self.width, self.height, 1, len(t2_idx)), order='F')
 
-        for key in batch_sprites:
+        for key in ['X1', 'X2', 'X3', 'X4']:
+            
             batch_sprites[key] = np.transpose(batch_sprites[key], (3,0,1,2))
             batch_masks[key] = np.transpose(batch_masks[key], (3,0,1,2))
 

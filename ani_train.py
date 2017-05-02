@@ -7,6 +7,8 @@ from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
 from utils.img_saving import imsave
+from utils.img_saving import merge
+
 #export PYTHONPATH=/home/xca64/vml4/github/video_prediction:/home/xca64/vml4/github/video_prediction/slim
 
 # How often to record tensorboard summaries.
@@ -201,14 +203,19 @@ def main(unused_argv):
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
                             + ', Cost ' + str(val_cost))
+          
+          mrg_img = merge(zip(*[batch_sprites_val[0], batch_sprites_val[1], batch_sprites_val[2], batch_sprites_val[3], predictions[0]]))
+          path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
+          imsave(path, mrg_img)
+        
         # save the last image
-        for img_id, img in enumerate(predictions[0]):
-          path = os.path.join(gif_dir, 'pre_' + str(itr) + '_' + str(img_id)+'.png')
-          imsave(path, img)
+        # for img_id, img in enumerate(predictions[0]):
+        #   path = os.path.join(gif_dir, 'pre_' + str(itr) + '_' + str(img_id)+'.png')
+        #   imsave(path, img)
 
-        for img_id, img in enumerate(batch_sprites_val[3]):
-          path = os.path.join(gif_dir, 'rel_' + str(itr) + '_' + str(img_id)+'.png')
-          imsave(path, img)
+        # for img_id, img in enumerate(batch_sprites_val[3]):
+        #   path = os.path.join(gif_dir, 'rel_' + str(itr) + '_' + str(img_id)+'.png')
+        #   imsave(path, img)
 
       if (itr) % FLAGS.SAVE_INTERVAL == FLAGS.SAVE_INTERVAL-20:
         tf.logging.info('Saving model.')

@@ -7,21 +7,23 @@ pp = pprint.PrettyPrinter()
 
 strfnow = lambda: strftime("%Y-%m-%d %H:%M:%S", gmtime())
 
-def merge(*images):
-  images = list(images)
+def merge(images):
+  # images = list(images)
   # For difference between target and inferenced image
   # images.append(abs(images[-2] - images[-1]))
 
-  h, w = images[0].shape[1], images[0].shape[2]
-  h_count, w_count = len(images), len(images[0])
-  img = np.zeros((h * h_count, w * w_count, 3))
+  h, w, d = images[0][0].shape[0], images[0][0].shape[1], images[0][0].shape[2]
 
-  for idx, image_set in enumerate(zip(*(images))):
+  h_count, w_count = len(images), len(images[0])
+
+  img = np.zeros((h * h_count, w * w_count, d))
+
+  for idx, image_set in enumerate(images):
     for jdx, image in enumerate(image_set):
       copy_img = image.copy()
-      copy_img[[0,-1],:,:]=1
-      copy_img[:,[0,-1],:]=1
-      img[jdx*h:jdx*h + h, idx*w:idx*w + w, :] = copy_img
+      # copy_img[[0,-1],:,:]=1
+      # copy_img[:,[0,-1],:]=1
+      img[idx*h:idx*h + h, jdx*w:jdx*w + w, :] = copy_img
   return img
 
 def imsave(path, image):
