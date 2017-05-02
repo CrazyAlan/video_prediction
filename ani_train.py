@@ -6,6 +6,7 @@ import os
 from tensorflow.python.platform import app
 from tensorflow.python.platform import flags
 
+from utils.img_saving import imsave
 #export PYTHONPATH=/home/xca64/vml4/github/video_prediction:/home/xca64/vml4/github/video_prediction/slim
 
 # How often to record tensorboard summaries.
@@ -28,7 +29,7 @@ flags.DEFINE_string('gif_dir', '/cs/vml4/xca64/robot_data/gif/' , 'directory gif
 flags.DEFINE_integer('gif_nums', 5 , 'number of gif files to save')
 flags.DEFINE_string('event_log_dir',SUM_DIR, 'directory for writing summary.')
 flags.DEFINE_integer('num_iterations', 10000, 'number of training iterations.')
-flags.DEFINE_integer('decay_step', 2000, 'number of steps to decrease the learning rate')
+flags.DEFINE_integer('decay_step', 5000, 'number of steps to decrease the learning rate')
 flags.DEFINE_string('pretrained_model', '' ,
                     'filepath of a pretrained model to initialize from.')
 
@@ -71,7 +72,7 @@ flags.DEFINE_float('gpu_memory_fraction', 0.5,
 flags.DEFINE_integer('batch_size', 25, 'batch size for training')
 flags.DEFINE_integer('val_iterations', 5, 'batch size for training')
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
-flags.DEFINE_integer('VAL_INTERVAL', 1000, 'Validation Start')
+flags.DEFINE_integer('VAL_INTERVAL', 2500, 'Validation Start')
 flags.DEFINE_integer('val_start',FLAGS.VAL_INTERVAL/2 , 'Validation Start')
 flags.DEFINE_integer('SAVE_INTERVAL', 2500, 'Save Interval')
 flags.DEFINE_integer('SUMMARY_INTERVAL', 40, 'Save Interval')
@@ -155,10 +156,15 @@ def main(unused_argv):
     # sess = tf.Session()
 
     summary_dir = os.path.join(base_dir, 'summaries')
-    if os.path.isdir(summary_dir):
+    if not os.path.isdir(summary_dir):
       os.makedirs(summary_dir)
     summary_writer = tf.summary.FileWriter(
         summary_dir, graph=sess.graph, flush_secs=10)
+
+    gif_dir = os.path.join(base_dir, 'gif')
+    if not os.path.isdir(gif_dir):
+      os.makedirs(gif_dir)
+
 
     coord = tf.train.Coordinator()
     tf.train.start_queue_runners(coord=coord, sess=sess)
@@ -195,6 +201,14 @@ def main(unused_argv):
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
                             + ', Cost ' + str(val_cost))
+        # save the last image
+        for img_id, img in enumerate(predictions[0]):
+          path = os.path.join(gif_dir, 'pre_' + str(itr) + '_' + str(img_id)+'.png')
+          imsave(path, img)
+
+        for img_id, img in enumerate(batch_sprites_val[3]):
+          path = os.path.join(gif_dir, 'rel_' + str(itr) + '_' + str(img_id)+'.png')
+          imsave(path, img)
 
       if (itr) % FLAGS.SAVE_INTERVAL == FLAGS.SAVE_INTERVAL-20:
         tf.logging.info('Saving model.')
