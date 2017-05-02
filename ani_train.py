@@ -27,8 +27,8 @@ flags.DEFINE_string('output_dir', OUT_DIR, 'directory for model checkpoints.')
 flags.DEFINE_string('gif_dir', '/cs/vml4/xca64/robot_data/gif/' , 'directory gif result')
 flags.DEFINE_integer('gif_nums', 5 , 'number of gif files to save')
 flags.DEFINE_string('event_log_dir',SUM_DIR, 'directory for writing summary.')
-flags.DEFINE_integer('num_iterations', 2000, 'number of training iterations.')
-flags.DEFINE_integer('decay_step', 1000, 'number of steps to decrease the learning rate')
+flags.DEFINE_integer('num_iterations', 10000, 'number of training iterations.')
+flags.DEFINE_integer('decay_step', 2000, 'number of steps to decrease the learning rate')
 flags.DEFINE_string('pretrained_model', '' ,
                     'filepath of a pretrained model to initialize from.')
 
@@ -69,7 +69,7 @@ flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
 flags.DEFINE_integer('batch_size', 25, 'batch size for training')
-
+flags.DEFINE_integer('val_iterations', 5, 'batch size for training')
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
 flags.DEFINE_integer('VAL_INTERVAL', 1000, 'Validation Start')
 flags.DEFINE_integer('val_start',FLAGS.VAL_INTERVAL/2 , 'Validation Start')
@@ -128,8 +128,10 @@ def main(unused_argv):
 
     batch_sprites_holder = tf.placeholder(tf.float32, shape=(4, None, height, width, dim))
     batch_masks_holder = tf.placeholder(tf.float32, shape=(4, None,  height, width, 1))
-
     model = Model(batch_sprites_holder, batch_masks_holder, global_step)
+
+    model_val = Model(batch_sprites_holder, batch_masks_holder, global_step, reuse=True)
+
        
     print('Constructing saver.')
     time_info = datetime.now().strftime('%Y-%m-%d-%H%M%S')
@@ -172,13 +174,7 @@ def main(unused_argv):
     for itr in range(0,FLAGS.num_iterations):
 
       # Running Training, accumunate grads before update
-      batch_labels_dict, batch_sprites_dict, batch_masks_dict = loader.next()
-
-      batch_sprites = []
-      batch_masks = []
-      for key in batch_sprites_dict:
-        batch_sprites.append(batch_sprites_dict[key])
-        batch_masks.append(batch_masks_dict[key])
+      batch_sprites, batch_masks = loader.next()
 
       train_cost, _,  summary_str, learning_rate = sess.run([model.cost, model.train_op, model.summary_op, model.learning_rate], feed_dict ={
                                                               batch_sprites_holder : batch_sprites, 
@@ -187,14 +183,18 @@ def main(unused_argv):
       if itr % FLAGS.print_interval == 0:
         tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(np.mean(train_cost)) + ', Learning Rate is ' + str(learning_rate))
 
-      # if (itr) % FLAGS.VAL_INTERVAL ==  FLAGS.val_start:
-      #   print('Running Validation Now')
-      #   val_acc = []
-      #   for val_itr in range(FLAGS.test_images):
-      #     summary_str, acc = sess.run([val_model.summary_op, val_model.accuracy])
-      #     val_acc.append(acc)
-      #     if val_itr % FLAGS.print_interval == 0:
-      #       tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', acc ' + str(acc) + ' , Accuracy ' + str(np.mean(val_acc)))
+      if (itr) % FLAGS.VAL_INTERVAL ==  FLAGS.val_start:
+        print('Running Validation Now')
+        for val_itr in range(FLAGS.val_iterations):
+          batch_sprites_val, batch_masks_val = loader.next_val()
+
+          val_cost, summary_str, predictions = sess.run([model_val.cost, model_val.summary_op, model_val.predict], feed_dict ={
+                                                              batch_sprites_holder : batch_sprites_val, 
+                                                              batch_masks_holder: batch_masks_val})
+
+          if val_itr % FLAGS.print_interval == 0:
+            tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
+                            + ', Cost ' + str(val_cost))
 
       if (itr) % FLAGS.SAVE_INTERVAL == FLAGS.SAVE_INTERVAL-20:
         tf.logging.info('Saving model.')

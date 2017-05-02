@@ -24,11 +24,25 @@ class Loader(object):
         self.mat_path = os.path.join(os.path.expanduser(self.datadir), 'sprites/sprites_splits.mat')
         self.splits = scipy.io.loadmat(self.mat_path)
         self.trainidx = self.splits['trainidx'][0]
+        self.validx = self.splits['validx'][0]
+        self.testidx = self.splits['testidx'][0] 
 
         self.trainfiles=[]
+        self.valfiles=[]
+        self.testfiles=[]
+
         for idx in self.trainidx:
             path = os.path.join(os.path.expanduser(self.datadir),'sprites', 'sprites_'+str(idx-1)+'.mat')
             self.trainfiles.append(path)
+
+        for idx in self.validx:
+            path = os.path.join(os.path.expanduser(self.datadir),'sprites', 'sprites_'+str(idx-1)+'.mat')
+            self.valfiles.append(path)
+        
+        for idx in self.testidx:
+            path = os.path.join(os.path.expanduser(self.datadir),'sprites', 'sprites_'+str(idx-1)+'.mat')
+            self.testfiles.append(path)
+                        
 
     def fix_wpn(self, label, idx_anim):
         L = label
@@ -45,10 +59,43 @@ class Loader(object):
         return L
 
     def next(self, set_option=None):
-        return self.sample_analogy_add(self.trainfiles)
+        # Running Training, accumunate grads before update
+        batch_labels_dict, batch_sprites_dict, batch_masks_dict = self.sample_analogy_add(self.trainfiles)
+
+        batch_sprites = []
+        batch_masks = []
+
+        for key in batch_sprites_dict:
+            batch_sprites.append(batch_sprites_dict[key])
+            batch_masks.append(batch_masks_dict[key])
+
+        return batch_sprites, batch_masks
+
+    def next_val(self, set_option=None):
+        # Running Training, accumunate grads before update
+        batch_labels_dict, batch_sprites_dict, batch_masks_dict = self.sample_analogy_add(self.valfiles)
+
+        batch_sprites = []
+        batch_masks = []
+
+        for key in batch_sprites_dict:
+            batch_sprites.append(batch_sprites_dict[key])
+            batch_masks.append(batch_masks_dict[key])
+
+        return batch_sprites, batch_masks
 
     def next_test(self, set_option=None):
-        return self.sample_analogy_add(self.trainfiles, set_option)
+        # Running Training, accumunate grads before update
+        batch_labels_dict, batch_sprites_dict, batch_masks_dict = self.sample_analogy_add(self.testfiles)
+
+        batch_sprites = []
+        batch_masks = []
+
+        for key in batch_sprites_dict:
+            batch_sprites.append(batch_sprites_dict[key])
+            batch_masks.append(batch_masks_dict[key])
+
+        return batch_sprites, batch_masks
 
     def sample_analogy_add(self, files, pars=None):
         batch_labels = {}
@@ -109,6 +156,6 @@ if __name__ == '__main__':
     tmp = Loader()
     # import pdb
     # pdb.set_trace()
-    batch_labels, batch_sprites, batch_masks = tmp.next()
+    batch_sprites, batch_masks = tmp.next()
 
 

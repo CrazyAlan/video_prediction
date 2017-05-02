@@ -175,29 +175,42 @@ class Model(object):
     learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, global_step,
                    FLAGS.decay_step, 0.1, staircase=True)
 
+    train_op = None
 
     with slim.arg_scope(arg_scope):
-      # import pdb
-      # pdb.set_trace()
+      if reuse == None:
 
-      ref, _ = ana_sprite_3.enc(batch_sprites[0])
-      out, _ = ana_sprite_3.enc(batch_sprites[1])
-      query, _ = ana_sprite_3.enc(batch_sprites[2])
-      # target = ana_sprite_3.enc(batch_sprites['X4'])
+        ref, _ = ana_sprite_3.enc(batch_sprites[0])
+        out, _ = ana_sprite_3.enc(batch_sprites[1], reuse=True)
+        query, _ = ana_sprite_3.enc(batch_sprites[2], reuse=True)
 
+        #Vector addition for analogy
+        top = out - ref + query;
 
-    #Vector addition for analogy
-      top = out - ref + query;
+        pred_masks, _ = ana_sprite_3.dec_mask(top)
+        pred_sprites, _ = ana_sprite_3.dec_rgb(top)
 
-      pred_masks, _ = ana_sprite_3.dec_mask(top)
-      pred_sprites, _ = ana_sprite_3.dec_rgb(top)
+        # calculate cost
+        cost = cost_con(pred_sprites, pred_masks, batch_sprites[3], batch_masks[3])
 
-      # calculate cost
-      cost = cost_con(pred_sprites, pred_masks, batch_sprites[3], batch_masks[3])
+        train_op = train(cost, global_step,
+                FLAGS.optimizer, learning_rate,
+                0.9999, _get_variables_to_train())
+      else:
 
-      train_op = train(cost, global_step,
-              FLAGS.optimizer, learning_rate,
-              0.9999, _get_variables_to_train())
+        ref, _ = ana_sprite_3.enc(batch_sprites[0], reuse=reuse)
+        out, _ = ana_sprite_3.enc(batch_sprites[1], reuse=reuse)
+        query, _ = ana_sprite_3.enc(batch_sprites[2], reuse=reuse)
+
+        #Vector addition for analogy
+        top = out - ref + query;
+
+        pred_masks, _ = ana_sprite_3.dec_mask(top, reuse=reuse)
+        pred_sprites, _ = ana_sprite_3.dec_rgb(top, reuse=reuse)
+
+        # calculate cost
+        cost = cost_con(pred_sprites, pred_masks, batch_sprites[3], batch_masks[3])
+
 
       summary_op = tf.summary.merge_all()
 
@@ -208,3 +221,4 @@ class Model(object):
     self.summary_op = summary_op
     self.learning_rate = learning_rate
     self.cost = cost
+    self.predict = [pred_sprites, pred_masks]
