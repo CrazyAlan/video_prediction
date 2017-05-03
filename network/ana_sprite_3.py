@@ -46,6 +46,8 @@ def enc(batch_sprites,
 
 			end_points = slim.utils.convert_collection_to_dict(end_points_collection)
 
+			# import pdb
+			# pdb.set_trace()
 			return net, end_points
 
 # Decode for RGB
@@ -125,3 +127,35 @@ def ana_inc(out, ref, query, option='Add', reuse=None):
   elif option == 'Deep':
   	inc, _ = inc_net(out-ref, query, reuse=reuse)
   return inc
+
+
+def disc(feat, 
+		 data,
+		 is_training=True,
+		 scope='ana_sprite_3_disc',
+		 reuse=None):
+	with tf.variable_scope(scope, 'ana_sprite_3_disc', [feat, data], reuse=reuse) as sc:
+		end_points_collection = sc.name + '_end_points'
+		with slim.arg_scope([slim.conv2d, slim.fully_connected],
+            outputs_collections=end_points_collection): 
+			
+			net = slim.conv2d(batch_sprites, 64, [5,5], stride=2, scope='conv1')
+			net = slim.conv2d(net, 32, [5,5], stride=2, scope='conv2')
+			net = slim.flatten(net)
+			net = slim.fully_connected(net, 2048, scope='fc3')
+			net = slim.fully_connected(net, 1024, scope='fc4')
+
+			net_feat = slim.fully_connected(feat, 2048, scope='feat_fc3')
+			net_feat = slim.fully_connected(net_feat, 1024, scope='feat_fc4')
+
+			net = tf.concat([net, net_feat], 1, name='feat_net_concat')
+
+			net = slim.fully_connected(net, 1024, scope='fc5')
+			net = slim.dropout(net, keep_prob=0.5, is_training=is_training, scope='drop_5')
+			net = slim.fully_connected(net, 1024, scope='fc6')
+			net = slim.dropout(net, keep_prob=0.5, is_training=is_training, scope='drop_6')
+			net = slim.fully_connected(net, 2, scope='fc7', activation_fn=None)
+
+			end_points = slim.utils.convert_collection_to_dict(end_points_collection)
+
+			return net, end_points 
