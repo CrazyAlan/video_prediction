@@ -254,7 +254,8 @@ class Model(object):
     disc_loss= None
     disc_gen_loss = None
     feat_loss = None
-
+    disc_real_loss = None
+    disc_pred_loss = None, 
     with slim.arg_scope(arg_scope):
       if reuse == None:
 
@@ -322,6 +323,8 @@ class Model(object):
         #         FLAGS.optimizer, learning_rate,
         #         0.9999, _get_variables_to_train())
       else:
+        # import pdb
+        # pdb.set_trace()
 
         ref, _ = network.enc(batch_sprites[0], reuse=reuse)
         out, _ = network.enc(batch_sprites[1], reuse=reuse)
@@ -350,7 +353,7 @@ class Model(object):
     self.disc_acc = disc_acc
     self.discr_loss_ratio = discr_loss_ratio
     self.gen_loss = gen_loss
-    self.other_loss = [disc_loss, disc_gen_loss, feat_loss]
+    self.other_loss = [disc_real_loss, disc_pred_loss, disc_gen_loss, feat_loss]
     self.recon_loss = recon_loss
 
     self.summary_op = summary_op

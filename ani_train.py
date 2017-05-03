@@ -72,11 +72,11 @@ flags.DEFINE_float('batch_norm_decay', 0.997,
 flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
-flags.DEFINE_float('lambda_img', 2e-3,
+flags.DEFINE_float('lambda_img', 2e-2,
                    'image reconstruction loss percentage')
-flags.DEFINE_float('lambda_adv', 10,
+flags.DEFINE_float('lambda_adv', 100,
                    'adversrial loss percentage')
-flags.DEFINE_float('lambda_feat', 0.1,
+flags.DEFINE_float('lambda_feat', 0.01,
                    'feature loss percentage')
 
 flags.DEFINE_integer('batch_size', 25, 'batch size for training')
@@ -269,17 +269,18 @@ def main(unused_argv):
         TRAIN_DIS = True
 
       if itr % FLAGS.print_interval == 0:
-        log_str = ('In {itr}, Total_Loss {gen_loss}, Recon Loss {recon_loss}, '\
-                    'Disc Loss {disc_loss}, Disc_gen loss {disc_gen_loss}, Feat {feat_loss} '\
+        log_str = ('In {itr}, T_Loss {gen_loss}, Re_Loss {recon_loss}, '\
+                    'Dis_Loss {disc_real_loss}, F_loss {disc_pred_loss} , Di_gen {disc_gen_loss}, Feat {feat_loss} '\
                     'LRate {learning_rate},  '\
                     'Disc_Re_acc {real_acc}, Fa_acc {fake_acc}, '\
                     'dis_lo_ration {discr_loss_ratio}, '\
-                    'Train scope, Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, gen_loss=str(gen_loss), recon_loss=str(recon_loss),\
+                    'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, gen_loss=str(gen_loss), recon_loss=str(recon_loss),\
                                                                                                learning_rate=str(learning_rate), real_acc=str(disc_acc[0]), fake_acc=str(disc_acc[1]),\
                                                                                                discr_loss_ratio=str(discr_loss_ratio),\
                                                                                                TRAIN_ENC=TRAIN_ENC, TRAIN_GEN=TRAIN_GEN, TRAIN_DIS=TRAIN_DIS,\
-                                                                                               disc_loss=str(other_loss[0]), disc_gen_loss=str(other_loss[1]), \
-                                                                                               feat_loss=str(other_loss[2]))
+                                                                                               disc_real_loss=str(other_loss[0]), disc_pred_loss=str(other_loss[1]),\
+                                                                                               disc_gen_loss=str(other_loss[2]), \
+                                                                                               feat_loss=str(other_loss[3]))
 
         tf.logging.info(log_str)
 
@@ -288,7 +289,10 @@ def main(unused_argv):
         for val_itr in range(FLAGS.val_iterations):
           batch_sprites_val, batch_masks_val = loader.next_val()
 
-          val_cost, summary_str, predictions, pred_comb = sess.run([model_val.gen_loss, 
+          # import pdb
+          # pdb.set_trace()
+
+          val_cost, summary_str, predictions, pred_comb = sess.run([model_val.recon_loss, 
                                                                     model_val.summary_op, 
                                                                     model_val.predict, 
                                                                     model_val.pred_comb], 
@@ -299,7 +303,7 @@ def main(unused_argv):
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
                             + ', Cost ' + str(val_cost))
-          
+
           mrg_img = merge(zip(*[batch_sprites_val[0], batch_sprites_val[1], batch_sprites_val[2], batch_sprites_val[3], predictions[0], pred_comb]))
           path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
           imsave(path, mrg_img)
