@@ -14,6 +14,7 @@ from utils.img_saving import merge
 # How often to record tensorboard summaries.
 SUMMARY_INTERVAL = 40
 
+
 # How often to save a model checkpoint
 
 
@@ -71,6 +72,13 @@ flags.DEFINE_float('batch_norm_decay', 0.997,
 flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
+flags.DEFINE_float('lambda_img', 2e-3,
+                   'image reconstruction loss percentage')
+flags.DEFINE_float('lambda_adv', 10,
+                   'adversrial loss percentage')
+flags.DEFINE_float('lambda_feat', 0.1,
+                   'feature loss percentage')
+
 flags.DEFINE_integer('batch_size', 25, 'batch size for training')
 flags.DEFINE_integer('val_iterations', 5, 'batch size for training')
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
@@ -81,11 +89,11 @@ flags.DEFINE_integer('SUMMARY_INTERVAL', 40, 'Save Interval')
 
 
 
-flags.DEFINE_float('learning_rate', 0.001,
+flags.DEFINE_float('learning_rate', 0.0002,
                    'the base learning rate of the generator')
-flags.DEFINE_float('lambda_rgb', 0.01,
+flags.DEFINE_float('lambda_rgb', 1,
                    'the base learning rate of the generator')
-flags.DEFINE_float('lambda_mask', 0.001,
+flags.DEFINE_float('lambda_mask', 0.1,
                    'the base learning rate of the generator')
 
 #####################
@@ -121,7 +129,50 @@ from model.ani import Model
 height = 60
 width = 60
 dim = 3
+
+# def update_train_op():
+#   if discr_loss_ratio < 1e-1 and TRAIN_DIS:
+#     TRAIN_DIS = False
+#     TRAIN_GEN = True
+#   if discr_loss_ratio > 5e-1 and not TRAIN_DIS:
+#     TRAIN_DIS = True
+#     TRAIN_GEN = True
+#   if discr_loss_ratio > 1e1 and TRAIN_GEN:
+#     TRAIN_GEN = False
+#     TRAIN_DIS = True
+
+def _update_scope(model, TRAIN_GEN, TRAIN_DIS):
+  train_ops = [model.gen_loss,
+                model.recon_loss,
+                model.disc_acc, 
+                model.summary_op, 
+                model.learning_rate,
+                model.discr_loss_ratio,
+                model.other_loss]
+  if TRAIN_GEN and TRAIN_DIS:
+    train_ops += [model.update_disc_op,
+                 model.update_gen_op,
+                 model.update_enc_op]
+  elif TRAIN_GEN:
+
+    train_ops += [model.update_gen_op,
+                  model.update_enc_op]
+
+  elif TRAIN_DIS:
+
+    train_ops += [model.update_disc_op,
+                  model.update_enc_op]
+  
+  return train_ops
+
 def main(unused_argv):
+
+  TRAIN_ENC = True
+  TRAIN_GEN = True
+  TRAIN_DIS = True
+  discr_loss_ratio = 1
+
+
   tf.logging.set_verbosity(tf.logging.INFO)
 
   with tf.Graph().as_default():
@@ -184,27 +235,72 @@ def main(unused_argv):
       # Running Training, accumunate grads before update
       batch_sprites, batch_masks = loader.next()
 
-      train_cost, _,  summary_str, learning_rate = sess.run([model.cost, model.train_op, model.summary_op, model.learning_rate], feed_dict ={
+      if TRAIN_GEN and TRAIN_DIS:
+        gen_loss,recon_loss,disc_acc, \
+        summary_str, learning_rate, \
+        discr_loss_ratio,other_loss ,_,_,_ = sess.run(list(_update_scope(model,TRAIN_GEN, TRAIN_DIS)), 
+                                                              feed_dict ={
                                                               batch_sprites_holder : batch_sprites, 
                                                               batch_masks_holder: batch_masks})
-      
+      elif TRAIN_GEN:
+        gen_loss,recon_loss,disc_acc, \
+        summary_str, learning_rate, \
+        discr_loss_ratio, other_loss, _,_ = sess.run(list(_update_scope(model, TRAIN_GEN, TRAIN_DIS)), 
+                                                              feed_dict ={
+                                                              batch_sprites_holder : batch_sprites, 
+                                                              batch_masks_holder: batch_masks})
+      elif TRAIN_DIS:
+        gen_loss,recon_loss,disc_acc, \
+        summary_str, learning_rate,\
+        discr_loss_ratio, other_loss,_,_ = sess.run(list(_update_scope(model, TRAIN_GEN, TRAIN_DIS)), 
+                                                              feed_dict ={
+                                                              batch_sprites_holder : batch_sprites, 
+                                                              batch_masks_holder: batch_masks})
+      # Modify training scope  
+      # update_train_op()
+      if discr_loss_ratio < 1e-1 and TRAIN_DIS:
+        TRAIN_DIS = False
+        TRAIN_GEN = True
+      if discr_loss_ratio > 5e-1 and not TRAIN_DIS:
+        TRAIN_DIS = True
+        TRAIN_GEN = True
+      if discr_loss_ratio > 1e1 and TRAIN_GEN:
+        TRAIN_GEN = False
+        TRAIN_DIS = True
+
       if itr % FLAGS.print_interval == 0:
-        tf.logging.info('  In Iteration ' + str(itr) + ', Cost ' + str(np.mean(train_cost)) + ', Learning Rate is ' + str(learning_rate))
+        log_str = ('In {itr}, Total_Loss {gen_loss}, Recon Loss {recon_loss}, '\
+                    'Disc Loss {disc_loss}, Disc_gen loss {disc_gen_loss}, Feat {feat_loss} '\
+                    'LRate {learning_rate},  '\
+                    'Disc_Re_acc {real_acc}, Fa_acc {fake_acc}, '\
+                    'dis_lo_ration {discr_loss_ratio}, '\
+                    'Train scope, Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, gen_loss=str(gen_loss), recon_loss=str(recon_loss),\
+                                                                                               learning_rate=str(learning_rate), real_acc=str(disc_acc[0]), fake_acc=str(disc_acc[1]),\
+                                                                                               discr_loss_ratio=str(discr_loss_ratio),\
+                                                                                               TRAIN_ENC=TRAIN_ENC, TRAIN_GEN=TRAIN_GEN, TRAIN_DIS=TRAIN_DIS,\
+                                                                                               disc_loss=str(other_loss[0]), disc_gen_loss=str(other_loss[1]), \
+                                                                                               feat_loss=str(other_loss[2]))
+
+        tf.logging.info(log_str)
 
       if (itr) % FLAGS.VAL_INTERVAL ==  FLAGS.val_start:
         print('Running Validation Now')
         for val_itr in range(FLAGS.val_iterations):
           batch_sprites_val, batch_masks_val = loader.next_val()
 
-          val_cost, summary_str, predictions = sess.run([model_val.cost, model_val.summary_op, model_val.predict], feed_dict ={
-                                                              batch_sprites_holder : batch_sprites_val, 
-                                                              batch_masks_holder: batch_masks_val})
+          val_cost, summary_str, predictions, pred_comb = sess.run([model_val.gen_loss, 
+                                                                    model_val.summary_op, 
+                                                                    model_val.predict, 
+                                                                    model_val.pred_comb], 
+                                                                    feed_dict ={
+                                                                    batch_sprites_holder : batch_sprites_val, 
+                                                                    batch_masks_holder: batch_masks_val})
 
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
                             + ', Cost ' + str(val_cost))
           
-          mrg_img = merge(zip(*[batch_sprites_val[0], batch_sprites_val[1], batch_sprites_val[2], batch_sprites_val[3], predictions[0]]))
+          mrg_img = merge(zip(*[batch_sprites_val[0], batch_sprites_val[1], batch_sprites_val[2], batch_sprites_val[3], predictions[0], pred_comb]))
           path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
           imsave(path, mrg_img)
         
