@@ -230,6 +230,12 @@ def main(unused_argv):
 
     # Data loader
     loader = Loader()
+
+    # Record Z mean 
+    sample_z_mean = np.zeros((FLAGS.batch_size, model.z_mean.get_shape().as_list()[1]))
+    sample_z_stddev_log = np.zeros((FLAGS.batch_size, model.z_stddev_log.get_shape().as_list()[1]))
+    sample_step = 0
+
     print('Start Tranning')
     # Run training.
     for itr in range(0,FLAGS.num_iterations):
@@ -237,48 +243,62 @@ def main(unused_argv):
       # Running Training, accumunate grads before update
       batch_sprites, batch_masks = loader.next()
 
-      _, kl_loss, loss, summary_str, pred_comb = sess.run([model.train_op, model.kl_loss,\
-                                  model.loss, model.summary_op, model.pred_comb],\
+      _, kl_loss, loss, summary_str, pred_comb, z_mean, z_stddev_log = sess.run([model.train_op, model.kl_loss,\
+                                  model.loss, model.summary_op, model.pred_comb, \
+                                  model.z_mean, model.z_stddev_log],\
                                   feed_dict ={
                                   batch_sprites_holder : batch_sprites, 
                                   batch_masks_holder: batch_masks})
+
+      sample_z_mean += z_mean
+      sample_z_stddev_log += z_stddev_log
+      sample_step += 1
 
       if itr % FLAGS.print_interval == 0:
         log_str = ('In iteration {itr}, kl_loss: {kl_loss},'\
           ' loss: {loss}').format(itr=itr,
                                   kl_loss=str(kl_loss),
                                   loss=str(loss))
-
         tf.logging.info(log_str)
 
       if (itr) % FLAGS.VAL_INTERVAL ==  FLAGS.val_start:
         print('Running Validation Now')
-        # for val_itr in range(FLAGS.val_iterations):
-        #   batch_sprites_val, batch_masks_val = loader.next()
 
-        #   # import pdb
-        #   # pdb.set_trace()
+        # Sampled z is used for eval.
+        # It seems 10k is better than 1k. Maybe try 100k next?
+        with tf.gfile.Open(os.path.join(base_dir, 'z_mean.npy'), 'w') as f:
+          np.save(f, sample_z_mean / sample_step)
+        with tf.gfile.Open(
+            os.path.join(base_dir, 'z_stddev_log.npy'), 'w') as f:
+          np.save(f, sample_z_stddev_log / sample_step)
 
-        #  _, kl_loss, loss, summary_str = sess.run([model.train_op, model.kl_loss,\
-        #                                            model.loss, model.summary_op]\
-        #                                             feed_dict ={
-        #                                             batch_sprites_holder : batch_sprites_val, 
-        #                                             batch_masks_holder: batch_masks_val})
+        for val_itr in range(FLAGS.val_iterations):
+          kl_loss, loss, pred_comb, pred_sprites = sess.run([model.kl_loss,\
+                            model.loss, model.pred_comb, model.pred_sprites],\
+                            feed_dict ={
+                              batch_sprites_holder : batch_sprites, 
+                              batch_masks_holder: batch_masks,
+                              model.z_mean: sample_z_mean / sample_step,
+                              model.z_stddev_log: sample_z_stddev_log / sample_step})
 
-        #   if val_itr % FLAGS.print_interval == 0:
-        #     tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
-        #                     + ', Cost ' + str(val_cost))
+          if val_itr % FLAGS.print_interval == 0:
+            tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
+                            + ', Total Loss ' + str(loss) + ', kl_loss ' + str(kl_loss))
 
-        mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], predictions[0], pred_comb]))
-        # path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
-        imsave(path, mrg_img)
+          mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], pred_sprites, pred_comb]))
+          path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
+          imsave(path, mrg_img)
 
-      # if (itr) % FLAGS.SAVE_INTERVAL == FLAGS.SAVE_INTERVAL-20:
-      #   tf.logging.info('Saving model.')
-      #   saver.save(sess,  os.path.join(os.path.expanduser(saver_dir), 'model' + str(itr)))
+        sample_z_mean = np.zeros((FLAGS.batch_size, model.z_mean.get_shape().as_list()[1]))
+        sample_z_stddev_log = np.zeros((FLAGS.batch_size, model.z_stddev_log.get_shape().as_list()[1]))
+        sample_step = 0
 
-      # if (itr) % FLAGS.SUMMARY_INTERVAL:
-      #   summary_writer.add_summary(summary_str, itr)
+      if (itr) % FLAGS.SAVE_INTERVAL == FLAGS.SAVE_INTERVAL-20:
+        tf.logging.info('Saving model.')
+        saver.save(sess,  os.path.join(os.path.expanduser(saver_dir), 'model' + str(itr)))
+
+      if (itr) % FLAGS.SUMMARY_INTERVAL:
+        summary_writer.add_summary(summary_str, itr)
 
     tf.logging.info('Saving model.')
     saver.save(sess, os.path.join(os.path.expanduser(saver_dir), 'model'))

@@ -140,7 +140,7 @@ class Model(object):
     self.batch_masks = batch_masks
     self.global_step = global_step
     self.is_training = is_training
-    self.init_from_checkpoint = _get_init_fn()
+
 
   def Build(self):
     # with tf.device('/gpu:0'):
@@ -169,6 +169,7 @@ class Model(object):
                          _get_variables_to_train())
 
     self.summary_op = tf.summary.merge_all()
+    self.init_from_checkpoint = _get_init_fn()
 
   def _BuildTrainOp(self, total_loss, global_step, optimizer, learning_rate, moving_average_decay, update_gradient_vars, log_histograms=True):
     loss_averages_op = _add_loss_summaries(total_loss)
