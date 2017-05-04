@@ -72,14 +72,14 @@ flags.DEFINE_float('batch_norm_decay', 0.997,
 flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
-flags.DEFINE_float('lambda_img', 2e-2,
+flags.DEFINE_float('lambda_img', 2e-3,
                    'image reconstruction loss percentage')
-flags.DEFINE_float('lambda_adv', 100,
+flags.DEFINE_float('lambda_adv', 10,
                    'adversrial loss percentage')
 flags.DEFINE_float('lambda_feat', 0.01,
                    'feature loss percentage')
 
-flags.DEFINE_integer('batch_size', 25, 'batch size for training')
+flags.DEFINE_integer('batch_size', 250, 'batch size for training')
 flags.DEFINE_integer('val_iterations', 5, 'batch size for training')
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
 flags.DEFINE_integer('VAL_INTERVAL', 2500, 'Validation Start')
