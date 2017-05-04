@@ -20,62 +20,195 @@ https://arxiv.org/pdf/1607.02586v1.pdf
 import math
 import sys
 
+import numpy as np
+from datetime import datetime
 import tensorflow as tf
+import os
+from tensorflow.python.platform import app
+from tensorflow.python.platform import flags
+
+from tensorflow.python.ops import control_flow_ops
+from slim.nets import resnet_v1
+from slim.nets import nets_factory
 
 slim = tf.contrib.slim
 
+FLAGS = flags.FLAGS
 
-class AnalogyVAEModel(object):
+if FLAGS.model == 'ana_sprite_3':
+  from network import ana_sprite_3
+  network = ana_sprite_3
 
-  def __init__(self, images, params):
-    """Constructor.
 
+def _add_loss_summaries(total_loss):
+    """Add summaries for losses.
+  
+    Generates moving average for all losses and associated summaries for
+    visualizing the performance of the network.
+  
     Args:
-      images: A list of (image_1, image_2) tuples, with shape
-          [Img_seq_len, batch_size, image_size, image_size, 3] 
-      params: Dict of parameters.
+      total_loss: Total loss from loss().
+    Returns:
+      loss_averages_op: op for generating moving averages of losses.
     """
-    self.images = images
-    self.params = params
+    # Compute the moving average of all individual losses and the total loss.
+    loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
+#     losses = tf.get_collection('losses')
+    loss_averages_op = loss_averages.apply([total_loss])
+  
+    # Attach a scalar summmary to all individual losses and the total loss; do the
+    # same for the averaged version of the losses.
+    for l in [total_loss]:
+        # Name each loss as '(raw)' and name the moving average version of the loss
+        # as the original loss name.
+        tf.summary.scalar(l.op.name +'raw', l)
+        tf.summary.scalar(l.op.name, loss_averages.average(l))
+  
+    return loss_averages_op
+
+def _get_variables_to_train():
+  """Returns a list of variables to train.
+
+  Returns:
+    A list of variables to train by the optimizer.
+  """
+  if FLAGS.trainable_scopes is None:
+    return tf.trainable_variables()
+  else:
+    scopes = [scope.strip() for scope in FLAGS.trainable_scopes.split(',')]
+
+  variables_to_train = []
+  for scope in scopes:
+    variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
+    variables_to_train.extend(variables)
+  return variables_to_train
+
+def _get_init_fn():
+  """Returns a function run by the chief worker to warm-start the training.
+
+  Note that the init_fn is only run when initializing the model during the very
+  first global step.
+
+  Returns:
+    An init function run by the supervisor.
+  """
+  if FLAGS.checkpoint_path is None:
+    return None
+
+  # Warn the user if a checkpoint exists in the train_dir. Then we'll be
+#   # ignoring the checkpoint anyway.
+#   if tf.train.latest_checkpoint(FLAGS.train_dir):
+#     tf.logging.info(
+#         'Ignoring --checkpoint_path because a checkpoint already exists in %s'
+#         % FLAGS.train_dir)
+#     return None
+
+  exclusions = []
+  if FLAGS.checkpoint_exclude_scopes:
+    exclusions = [scope.strip()
+    for scope in FLAGS.checkpoint_exclude_scopes.split(',')]
+
+  # TODO(sguada) variables.filter_variables()
+  variables_to_restore = []
+  for var in slim.get_model_variables():
+    excluded = False
+    for exclusion in exclusions:
+      if var.op.name.startswith(exclusion):
+        excluded = True
+        break
+    if not excluded:
+      variables_to_restore.append(var)
+
+  if tf.gfile.IsDirectory(FLAGS.checkpoint_path):
+    checkpoint_path = tf.train.latest_checkpoint(FLAGS.checkpoint_path)
+  else:
+    checkpoint_path = FLAGS.checkpoint_path
+
+  tf.logging.info('Fine-tuning from %s' % checkpoint_path)
+
+  return slim.assign_from_checkpoint_fn(
+      checkpoint_path,
+      variables_to_restore,
+      ignore_missing_vars=FLAGS.ignore_missing_vars)
+
+class Model(object):
+
+  def __init__(self, batch_sprites, batch_masks, global_step, is_training):
+    """Constructor.
+    """
+    self.batch_sprites = batch_sprites
+    self.batch_masks = batch_masks
+    self.global_step = global_step
+    self.is_training = is_training
+    self.init_from_checkpoint = _get_init_fn()
 
   def Build(self):
-    with tf.device('/gpu:0'):
-      with slim.arg_scope([slim.conv2d],
-                          activation_fn=tf.nn.relu,
-                          normalizer_fn=slim.batch_norm,
-                          normalizer_params={'is_training':
-                                             self.params['is_training']}):
-        self._BuildMotionKernel()
-        encoded_images = self._BuildImageEncoder()
-        cross_conved_images = self._CrossConv(encoded_images)
-        self._BuildImageDecoder(cross_conved_images)
-        self._BuildLoss()
+    # with tf.device('/gpu:0'):
+    arg_scope = network.arg_sco()
 
-      image = self.images[1]
-      diff = self.diffs[1]
+    learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, self.global_step,
+                 FLAGS.decay_step, 0.1, staircase=True)
 
-      self.global_step = tf.Variable(0, name='global_step', trainable=False)
+    with slim.arg_scope(arg_scope):
 
-      if self.params['is_training']:
-        self._BuildTrainOp()
+      inc = self._BuildAnalogyInc()
+      
+      encoded_image_info = self.ref
+      decoded_image_info = encoded_image_info + inc 
 
-      diff = diff * 2.0 - self.params['scale']
-      diff_output = self.diff_output * 2.0 - self.params['scale']
-      concat_image = tf.concat(
-          axis=1, values=[image, image + diff_output, image + diff, diff_output])
-      tf.summary.image('origin_predict_expect_predictdiff', concat_image)
-      self.summary_op = tf.summary.merge_all()
-      return self.loss
+      self._BuildImageDecoder(decoded_image_info)
+      self._BuildLoss()
 
-  def _BuildTrainOp(self):
-    lrn_rate = tf.maximum(
-        0.01,  # min_lr_rate.
-        tf.train.exponential_decay(
-            self.params['learning_rate'], self.global_step, 10000, 0.5))
-    tf.summary.scalar('learning rate', lrn_rate)
-    optimizer = tf.train.GradientDescentOptimizer(lrn_rate)
-    self.train_op = slim.learning.create_train_op(
-        self.loss, optimizer, global_step=self.global_step)
+    if self.is_training:
+
+      self._BuildTrainOp(self.loss, 
+                         self.global_step,
+                         FLAGS.optimizer,
+                         learning_rate,
+                         0.9999,
+                         _get_variables_to_train())
+
+    self.summary_op = tf.summary.merge_all()
+
+  def _BuildTrainOp(self, total_loss, global_step, optimizer, learning_rate, moving_average_decay, update_gradient_vars, log_histograms=True):
+    loss_averages_op = _add_loss_summaries(total_loss)
+  
+  # Compute gradients.
+    with tf.control_dependencies([loss_averages_op]):
+        if optimizer=='ADAGRAD':
+            opt = tf.train.AdagradOptimizer(learning_rate)
+        elif optimizer=='ADADELTA':
+            opt = tf.train.AdadeltaOptimizer(learning_rate, rho=0.9, epsilon=1e-6)
+        elif optimizer=='ADAM':
+            opt = tf.train.AdamOptimizer(learning_rate, beta1=0.9, beta2=0.999, epsilon=0.1)
+        elif optimizer=='RMSPROP':
+            opt = tf.train.RMSPropOptimizer(learning_rate, decay=0.9, momentum=0.9, epsilon=1.0)
+        elif optimizer=='MOM':
+            opt = tf.train.MomentumOptimizer(learning_rate, 0.9, use_nesterov=True)
+        else:
+            raise ValueError('Invalid optimization algorithm')
+
+    grads = opt.compute_gradients(total_loss, update_gradient_vars)
+    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+
+    with tf.control_dependencies(update_ops):
+      apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+
+    # Add histograms for trainable variables.
+    if log_histograms:
+        for var in tf.trainable_variables():
+            tf.summary.histogram(var.op.name, var)
+   
+    # Add histograms for gradients.
+    if log_histograms:
+        for grad, var in grads:
+            if grad is not None:
+                tf.summary.histogram(var.op.name + '/gradients', grad)
+
+    with tf.control_dependencies([apply_gradient_op]):
+      self.train_op = tf.no_op(name='train')
+    
+    # return train_op
 
   def _BuildLoss(self):
     # 1. reconstr_loss seems doesn't do better than l2 loss.
@@ -83,147 +216,75 @@ class AnalogyVAEModel(object):
     # 3. It seems kl loss doesn't play an important role.
     self.loss = 0
     with tf.variable_scope('loss'):
-      if self.params['l2_loss']:
-        l2_loss = tf.reduce_mean(tf.square(self.diff_output - self.diffs[1]))
-        tf.summary.scalar('l2_loss', l2_loss)
-        self.loss += l2_loss
-      if self.params['reconstr_loss']:
-        reconstr_loss = (-tf.reduce_mean(
-            self.diffs[1] * (1e-10 + self.diff_output) +
-            (1-self.diffs[1]) * tf.log(1e-10 + 1 - self.diff_output)))
-        reconstr_loss = tf.check_numerics(reconstr_loss, 'reconstr_loss')
-        tf.summary.scalar('reconstr_loss', reconstr_loss)
-        self.loss += reconstr_loss
-      if self.params['kl_loss']:
-        kl_loss = (0.5 * tf.reduce_mean(
+      self.loss += self.cost_con(self.batch_sprites[1],
+                                 self.batch_masks[1],
+                                 self.pred_sprites,
+                                 self.pred_masks)
+
+      # if self.params['reconstr_loss']:
+      #   reconstr_loss = (-tf.reduce_mean(
+      #       self.diffs[1] * (1e-10 + self.diff_output) +
+      #       (1-self.diffs[1]) * tf.log(1e-10 + 1 - self.diff_output)))
+      #   reconstr_loss = tf.check_numerics(reconstr_loss, 'reconstr_loss')
+      #   tf.summary.scalar('reconstr_loss', reconstr_loss)
+      #   self.loss += reconstr_loss
+      
+      if FLAGS.kl_loss:
+        self.kl_loss = (0.5 * tf.reduce_mean(
             tf.square(self.z_mean) + tf.square(self.z_stddev) -
             2 * self.z_stddev_log - 1))
-        tf.summary.scalar('kl_loss', kl_loss)
-        self.loss += kl_loss
+        tf.summary.scalar('kl_loss', self.kl_loss)
+        self.loss += self.kl_loss
 
       tf.summary.scalar('loss', self.loss)
 
-  def _BuildMotionKernel(self):
-    image = self.images[-2]
-    diff = self.diffs[-2]
-    shape = image.get_shape().as_list()
-    assert shape[1] == shape[2] and shape[1] == 128
-    batch_size = shape[0]
+  def cost_con(self, X, M, Xt, Mt, masked=True):
+    if masked:
+      err_x = tf.multiply((X - Xt), Mt)
+    else:
+      err_x = X - Xt
 
-    net = tf.concat(axis=3, values=[image, diff])
-    with tf.variable_scope('motion_encoder'):
-      with slim.arg_scope([slim.conv2d], padding='VALID'):
-        net = slim.conv2d(net, 96, [5, 5], stride=1)
-        net = slim.max_pool2d(net, [2, 2])
-        net = slim.conv2d(net, 96, [5, 5], stride=1)
-        net = slim.max_pool2d(net, [2, 2])
-        net = slim.conv2d(net, 128, [5, 5], stride=1)
-        net = slim.conv2d(net, 128, [5, 5], stride=1)
-        net = slim.max_pool2d(net, [2, 2])
-        net = slim.conv2d(net, 256, [4, 4], stride=1)
-        net = slim.conv2d(net, 256, [3, 3], stride=1)
+    err_m = M - Mt
 
-        z = tf.reshape(net, shape=[batch_size, -1])
+    cost_x = tf.nn.l2_loss(err_x)
+    cost_m = tf.nn.l2_loss(err_m)
+
+    cost = cost_x*FLAGS.lambda_rgb + cost_m*FLAGS.lambda_mask
+
+    return cost
+
+  def _BuildAnalogyInc(self):
+    
+    # Analogy encoder
+    self.ref, _ = network.enc(self.batch_sprites[0], collection_name='ref')    
+    self.out, _ = network.enc(self.batch_sprites[1], collection_name='out', reuse=True)
+
+    inc_info = network.ana_inc(self.out, self.ref, self.out, option='Deep')
+
+    with tf.variable_scope('inc_info_enc'):   
+        net = slim.fully_connected(inc_info, 512, scope='fc1')
+        net = slim.fully_connected(net, 512, scope='fc2')       
+        z = net
         self.z_mean, self.z_stddev_log = tf.split(
             axis=1, num_or_size_splits=2, value=z)
         self.z_stddev = tf.exp(self.z_stddev_log)
 
+        # import pdb
+        # pdb.set_trace()
+
         epsilon = tf.random_normal(
-            self.z_mean.get_shape().as_list(), 0, 1, dtype=tf.float32)
-        kernel = self.z_mean + tf.multiply(self.z_stddev, epsilon)
+            [FLAGS.batch_size, self.z_mean.get_shape().as_list()[1]], 0, 1, dtype=tf.float32)
+        hid =  self.z_mean + tf.multiply(self.z_stddev, epsilon)
 
-        width = int(math.sqrt(kernel.get_shape().as_list()[1] // 128))
-        kernel = tf.reshape(kernel, [batch_size, width, width, 128])
-    with tf.variable_scope('kernel_decoder'):
-      with slim.arg_scope([slim.conv2d], padding='SAME'):
-        kernel = slim.conv2d(kernel, 128, [5, 5], stride=1)
-        self.kernel = slim.conv2d(kernel, 128, [5, 5], stride=1)
+    with tf.variable_scope('inc_info_dec'):
+        net = slim.fully_connected(hid, 512, scope='fc1')
+        net = slim.fully_connected(net, 1024, scope='fc2')
 
-    sys.stderr.write('kernel shape: %s\n' % kernel.get_shape())
+        return net
 
-  def _BuildImageEncoder(self):
-    feature_maps = []
-    for (i, image) in enumerate(self.images):
-      with tf.variable_scope('image_encoder_%d' % i):
-        with slim.arg_scope([slim.conv2d, slim.max_pool2d], padding='SAME'):
-          net = slim.conv2d(image, 64, [5, 5], stride=1)
-          net = slim.conv2d(net, 64, [5, 5], stride=1)
-          net = slim.max_pool2d(net, [5, 5])
-          net = slim.conv2d(net, 64, [5, 5], stride=1)
-          net = slim.conv2d(net, 32, [5, 5], stride=1)
-          net = slim.max_pool2d(net, [2, 2])
-      sys.stderr.write('image_conv shape: %s\n' % net.get_shape())
-      feature_maps.append(net)
-    return feature_maps
+  def _BuildImageDecoder(self, decoded_image_info):
+    """Decode the hidden into the predicted images and masks"""
+    self.pred_masks, _ = network.dec_mask(decoded_image_info)
+    self.pred_sprites, _ = network.dec_rgb(decoded_image_info)
 
-  def _CrossConvHelper(self, encoded_image, kernel):
-    """Cross Convolution.
-
-      The encoded image and kernel are of the same shape. Namely
-      [batch_size, image_size, image_size, channels]. They are split
-      into [image_size, image_size] image squares [kernel_size, kernel_size]
-      kernel squares. kernel squares are used to convolute image squares.
-    """
-    images = tf.expand_dims(encoded_image, 0)
-    kernels = tf.expand_dims(kernel, 3)
-    return tf.nn.depthwise_conv2d(images, kernels, [1, 1, 1, 1], 'SAME')
-
-  def _CrossConv(self, encoded_images):
-    """Apply the motion kernel on the encoded_images."""
-    cross_conved_images = []
-    kernels = tf.split(axis=3, num_or_size_splits=4, value=self.kernel)
-    for (i, encoded_image) in enumerate(encoded_images):
-      with tf.variable_scope('cross_conv_%d' % i):
-        kernel = kernels[i]
-
-        encoded_image = tf.unstack(encoded_image, axis=0)
-        kernel = tf.unstack(kernel, axis=0)
-        assert len(encoded_image) == len(kernel)
-        assert len(encoded_image) == self.params['batch_size']
-        conved_image = []
-        for j in xrange(len(encoded_image)):
-          conved_image.append(self._CrossConvHelper(
-              encoded_image[j], kernel[j]))
-        cross_conved_images.append(tf.concat(axis=0, values=conved_image))
-        sys.stderr.write('cross_conved shape: %s\n' %
-                         cross_conved_images[-1].get_shape())
-    return cross_conved_images
-
-  def _Deconv(self, net, out_filters, kernel_size, stride):
-    shape = net.get_shape().as_list()
-    in_filters = shape[3]
-    kernel_shape = [kernel_size, kernel_size, out_filters, in_filters]
-
-    weights = tf.get_variable(
-        name='weights',
-        shape=kernel_shape,
-        dtype=tf.float32,
-        initializer=tf.truncated_normal_initializer(stddev=0.01))
-
-
-    out_height = shape[1] * stride
-    out_width = shape[2] * stride
-    batch_size = shape[0]
-
-    output_shape = [batch_size, out_height, out_width, out_filters]
-    net = tf.nn.conv2d_transpose(net, weights, output_shape,
-                                 [1, stride, stride, 1], padding='SAME')
-    slim.batch_norm(net)
-    return net
-
-  def _BuildImageDecoder(self, cross_conved_images):
-    """Decode the cross_conved feature maps into the predicted images."""
-    nets = []
-    for i, cross_conved_image in enumerate(cross_conved_images):
-      with tf.variable_scope('image_decoder_%d' % i):
-        stride = 64 / cross_conved_image.get_shape().as_list()[1]
-        # TODO(xpan): Alternative solution for upsampling?
-        nets.append(self._Deconv(
-            cross_conved_image, 64, kernel_size=3, stride=stride))
-
-    net = tf.concat(axis=3, values=nets)
-    net = slim.conv2d(net, 128, [9, 9], padding='SAME', stride=1)
-    net = slim.conv2d(net, 128, [1, 1], padding='SAME', stride=1)
-    net = slim.conv2d(net, 3, [1, 1], padding='SAME', stride=1)
-    self.diff_output = net
-    sys.stderr.write('diff_output shape: %s\n' % self.diff_output.get_shape())
+    self.pred_comb = tf.multiply(self.pred_masks, self.pred_sprites)
