@@ -83,6 +83,35 @@ def _get_variables_to_train():
     variables_to_train.extend(variables)
   return variables_to_train
 
+def _get_variables_to_train_with_option(option=None):
+  """Returns a list of variables to train.
+
+  Returns:
+    A list of variables to train by the optimizer.
+  """
+  if option is None:
+    return None
+  else:
+    scopes = [scope.strip() for scope in option.split(',')]
+
+  variables_to_train = []
+  for scope in scopes:
+    variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
+    variables_to_train.extend(variables)
+  return variables_to_train
+
+def _soft_loss(label, pred):
+  labels = np.ones((FLAGS.batch_size), dtype=np.int)*int(label)
+  tf_labels = slim.one_hot_encoding(labels, 2)
+
+  cost = tf.losses.softmax_cross_entropy(
+          tf_labels, pred)
+
+  correct_prediction = tf.equal(tf.argmax(pred,1), tf.argmax(tf_labels,1))
+  accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+  return cost, accuracy
+
 def _get_init_fn():
   """Returns a function run by the chief worker to warm-start the training.
 
@@ -146,7 +175,7 @@ class Model(object):
     # with tf.device('/gpu:0'):
     arg_scope = network.arg_sco()
 
-    learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, self.global_step,
+    self.learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, self.global_step,
                  FLAGS.decay_step, 0.1, staircase=True)
 
     with slim.arg_scope(arg_scope):
@@ -155,26 +184,26 @@ class Model(object):
       
       encoded_image_info = self.ref
       decoded_image_info = encoded_image_info + inc 
-
       self._BuildImageDecoder(decoded_image_info)
+      # Build Discriminator 
+      self._BuildDisc()
+      # Build Loss
       self._BuildLoss()
 
     if self.is_training:
 
-      self._BuildTrainOp(self.loss, 
-                         self.global_step,
+      self._BuildTrainOp(self.global_step,
                          FLAGS.optimizer,
-                         learning_rate,
-                         0.9999,
-                         _get_variables_to_train())
+                         self.learning_rate,
+                         0.9999)
 
     self.summary_op = tf.summary.merge_all()
     self.init_from_checkpoint = _get_init_fn()
 
-  def _BuildTrainOp(self, total_loss, global_step, optimizer, learning_rate, moving_average_decay, update_gradient_vars, log_histograms=True):
-    loss_averages_op = _add_loss_summaries(total_loss)
-  
-  # Compute gradients.
+  def _BuildTrainOp(self, global_step, optimizer, learning_rate, moving_average_decay, log_histograms=True):
+    loss_averages_op = _add_loss_summaries(self.loss)
+    
+    # Compute gradients.
     with tf.control_dependencies([loss_averages_op]):
         if optimizer=='ADAGRAD':
             opt = tf.train.AdagradOptimizer(learning_rate)
@@ -188,47 +217,61 @@ class Model(object):
             opt = tf.train.MomentumOptimizer(learning_rate, 0.9, use_nesterov=True)
         else:
             raise ValueError('Invalid optimization algorithm')
-
-    grads = opt.compute_gradients(total_loss, update_gradient_vars)
+    
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
 
     with tf.control_dependencies(update_ops):
-      apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+      
+      if FLAGS.train_enc:
+        enc_var = _get_variables_to_train_with_option(option=FLAGS.model+'_enc')
+        enc_grads = opt.compute_gradients(self.loss, enc_var)
+        self.enc_update_ops = opt.apply_gradients(enc_grads)
+      else:
+        self.enc_update_ops = tf.no_op(name='enc_train')
+
+      if FLAGS.train_gen:
+        gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_net,inc_info_enc,inc_info_dec').format(model=FLAGS.model)
+
+        gen_var = _get_variables_to_train_with_option(option=gen_scope)
+        gen_grads = opt.compute_gradients(self.loss, gen_var)
+        self.gen_update_ops = opt.apply_gradients(gen_grads, global_step=global_step)
+      else:
+        self.gen_update_ops = tf.no_op(name='gen_train')
+
+      if FLAGS.train_disc:
+        disc_var = _get_variables_to_train_with_option(option=FLAGS.model+'_disc')
+        disc_grads = opt.compute_gradients(self.loss, disc_var)
+        self.disc_update_ops = opt.apply_gradients(disc_grads)
+      else:
+        self.disc_update_ops = tf.no_op(name='disc_train')
 
     # Add histograms for trainable variables.
     if log_histograms:
-        for var in tf.trainable_variables():
-            tf.summary.histogram(var.op.name, var)
+      for var in tf.trainable_variables():
+        tf.summary.histogram(var.op.name, var)
    
-    # Add histograms for gradients.
-    if log_histograms:
-        for grad, var in grads:
-            if grad is not None:
-                tf.summary.histogram(var.op.name + '/gradients', grad)
-
-    with tf.control_dependencies([apply_gradient_op]):
-      self.train_op = tf.no_op(name='train')
-    
-    # return train_op
+    # # Add histograms for gradients.
+    # if log_histograms:
+    #   for grad, var in grads:
+    #     if grad is not None:
+    #       tf.summary.histogram(var.op.name + '/gradients', grad)
 
   def _BuildLoss(self):
     # 1. reconstr_loss seems doesn't do better than l2 loss.
     # 2. Only works when using reduce_mean. reduce_sum doesn't work.
     # 3. It seems kl loss doesn't play an important role.
     self.loss = 0
+    self.recon_loss = 0
+    self.kl_loss = 0
+    self.feat_loss = 0
+    self.disc_loss = 0
+    self.disc_gen_loss = 0
+
     with tf.variable_scope('loss'):
-      self.loss += self.cost_con(self.batch_sprites[1],
+      self.recon_loss = self.cost_con(self.batch_sprites[1],
                                  self.batch_masks[1],
                                  self.pred_sprites,
                                  self.pred_masks)
-
-      # if self.params['reconstr_loss']:
-      #   reconstr_loss = (-tf.reduce_mean(
-      #       self.diffs[1] * (1e-10 + self.diff_output) +
-      #       (1-self.diffs[1]) * tf.log(1e-10 + 1 - self.diff_output)))
-      #   reconstr_loss = tf.check_numerics(reconstr_loss, 'reconstr_loss')
-      #   tf.summary.scalar('reconstr_loss', reconstr_loss)
-      #   self.loss += reconstr_loss
       
       if FLAGS.kl_loss:
         self.kl_loss = (0.5 * tf.reduce_mean(
@@ -237,6 +280,19 @@ class Model(object):
         tf.summary.scalar('kl_loss', self.kl_loss)
         self.loss += self.kl_loss
 
+      if FLAGS.feat_loss:
+        self.feat_loss = tf.nn.l2_loss(self.out_endpoints[self.out_endpoints.keys()[2]] \
+                                        - self.out_pred_endpoints[self.out_pred_endpoints.keys()[2]])
+
+      if FLAGS.disc_loss:
+        disc_real_loss, self.disc_real_acc = _soft_loss(1, self.real_label)
+        disc_pred_loss, self.disc_pred_acc = _soft_loss(0, self.pred_label)
+        self.disc_loss =  disc_pred_loss + disc_real_loss
+        self.disc_gen_loss, _ = _soft_loss(1, self.pred_label)
+        self.discr_loss_ratio = (disc_real_loss + disc_pred_loss) / self.disc_gen_loss
+      
+      self.loss = FLAGS.lambda_img*self.recon_loss +  FLAGS.lambda_adv*self.disc_gen_loss + FLAGS.lambda_feat*self.feat_loss
+        
       tf.summary.scalar('loss', self.loss)
 
   def cost_con(self, X, M, Xt, Mt, masked=True):
@@ -257,31 +313,29 @@ class Model(object):
   def _BuildAnalogyInc(self):
     
     # Analogy encoder
-    self.ref, _ = network.enc(self.batch_sprites[0], collection_name='ref')    
-    self.out, _ = network.enc(self.batch_sprites[1], collection_name='out', reuse=True)
+    self.ref, self.ref_endpoints = network.enc(self.batch_sprites[0], collection_name='ref')    
+    self.out, self.out_endpoints = network.enc(self.batch_sprites[1], collection_name='out', reuse=True)
 
     inc_info = network.ana_inc(self.out, self.ref, self.out, option='Deep')
 
     with tf.variable_scope('inc_info_enc'):   
         net = slim.fully_connected(inc_info, 512, scope='fc1')
         net = slim.fully_connected(net, 512, scope='fc2')       
-        z = net
-        self.z_mean, self.z_stddev_log = tf.split(
-            axis=1, num_or_size_splits=2, value=z)
-        self.z_stddev = tf.exp(self.z_stddev_log)
+    
+    z = net
+    self.z_mean, self.z_stddev_log = tf.split(
+        axis=1, num_or_size_splits=2, value=z)
+    self.z_stddev = tf.exp(self.z_stddev_log)
 
-        # import pdb
-        # pdb.set_trace()
-
-        epsilon = tf.random_normal(
-            [FLAGS.batch_size, self.z_mean.get_shape().as_list()[1]], 0, 1, dtype=tf.float32)
-        hid =  self.z_mean + tf.multiply(self.z_stddev, epsilon)
+    epsilon = tf.random_normal(
+        [FLAGS.batch_size, self.z_mean.get_shape().as_list()[1]], 0, 1, dtype=tf.float32)
+    hid =  self.z_mean + tf.multiply(self.z_stddev, epsilon)
 
     with tf.variable_scope('inc_info_dec'):
         net = slim.fully_connected(hid, 512, scope='fc1')
         net = slim.fully_connected(net, 1024, scope='fc2')
 
-        return net
+    return net
 
   def _BuildImageDecoder(self, decoded_image_info):
     """Decode the hidden into the predicted images and masks"""
@@ -289,3 +343,14 @@ class Model(object):
     self.pred_sprites, _ = network.dec_rgb(decoded_image_info)
 
     self.pred_comb = tf.multiply(self.pred_masks, self.pred_sprites)
+
+  def _BuildDisc(self):
+    self.real_label, _ = network.disc(self.out_endpoints[self.out_endpoints.keys()[2]],
+                                 self.batch_sprites[1])
+
+    # Forward predicted image in encoder, to get the feat map
+    self.out_pred, self.out_pred_endpoints = network.enc(self.pred_comb, collection_name='pred', reuse=True)
+
+    self.pred_label, _ = network.disc(self.out_endpoints[self.out_endpoints.keys()[2]],
+                                 self.pred_comb,
+                                 reuse=True)
