@@ -17,7 +17,7 @@ class Loader(object):
     def __init__(self):
         
         self.datadir = '/cs/vml4/xca64/github/visual-analogy-tensorflow/data';
-        self.batchsize = FLAGS.batch_size
+        self.batch_size = 25
         self.width = 60
         self.height = 60
         self.dim = 3
@@ -58,44 +58,40 @@ class Loader(object):
                 L[6] = 0
         return L
 
-    def next(self, set_option=None):
+    def _batch_file(self, filenames):
         # Running Training, accumunate grads before update
-        batch_labels_dict, batch_sprites_dict, batch_masks_dict = self.sample_analogy_add(self.trainfiles)
+        batch_sprites_dict_list = []
+        batch_masks_dict_list = []
+        for i in range(FLAGS.batch_size / self.batch_size):
+            _, batch_sprites_dict, batch_masks_dict = self.sample_analogy_add(filenames)
+            
+            batch_sprites_dict_list.append(batch_sprites_dict)
+            batch_masks_dict_list.append(batch_masks_dict)
 
         batch_sprites = []
         batch_masks = []
-
         for key in ['X1', 'X2', 'X3', 'X4']:
-            batch_sprites.append(batch_sprites_dict[key])
-            batch_masks.append(batch_masks_dict[key])
+            tmp_sprites = []
+            tmp_masks = []
+            for i in range(len(batch_sprites_dict_list)):           
+                tmp_sprites += list(batch_sprites_dict_list[i][key])
+                tmp_masks += list(batch_masks_dict_list[i][key])
+            batch_sprites.append(tmp_sprites)
+            batch_masks.append(tmp_masks)
 
-        return batch_sprites, batch_masks
+        return np.array(batch_sprites), np.array(batch_masks)
+
+    def next(self, set_option=None):
+        # Running Training, accumunate grads before update
+        return self._batch_file(self.trainfiles)
 
     def next_val(self, set_option=None):
         # Running Training, accumunate grads before update
-        batch_labels_dict, batch_sprites_dict, batch_masks_dict = self.sample_analogy_add(self.valfiles)
-
-        batch_sprites = []
-        batch_masks = []
-
-        for key in ['X1', 'X2', 'X3', 'X4']:
-            batch_sprites.append(batch_sprites_dict[key])
-            batch_masks.append(batch_masks_dict[key])
-
-        return batch_sprites, batch_masks
+        return self._batch_file(self.valfiles)
 
     def next_test(self, set_option=None):
         # Running Training, accumunate grads before update
-        batch_labels_dict, batch_sprites_dict, batch_masks_dict = self.sample_analogy_add(self.testfiles)
-
-        batch_sprites = []
-        batch_masks = []
-
-        for key in ['X1', 'X2', 'X3', 'X4']:
-            batch_sprites.append(batch_sprites_dict[key])
-            batch_masks.append(batch_masks_dict[key])
-
-        return batch_sprites, batch_masks
+        return self._batch_file(self.testfiles)
 
     def sample_analogy_add(self, files, pars=None):
         batch_labels = {}
@@ -133,7 +129,7 @@ class Loader(object):
         sprite2 = np.array(anim2_sprite[idx_anim])
         mask2 = np.array(anim2_mask[idx_anim])
 
-        t1_idx = choice(range(np.shape(mask2)[1]), self.batchsize, replace=True)
+        t1_idx = choice(range(np.shape(mask2)[1]), self.batch_size, replace=True)
         t2_idx = t1_idx[np.random.permutation(len(t1_idx))]
 
         batch_sprites['X1'] = np.reshape(sprite1[:,t1_idx], (self.width, self.height, self.dim, len(t1_idx)), order='F')

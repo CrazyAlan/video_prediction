@@ -160,3 +160,4 @@ def disc(feat,
 			end_points = slim.utils.convert_collection_to_dict(end_points_collection)
 
 			return net, end_points 
+

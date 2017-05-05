@@ -96,6 +96,31 @@ flags.DEFINE_float('lambda_rgb', 1,
 flags.DEFINE_float('lambda_mask', 0.1,
                    'the base learning rate of the generator')
 
+
+
+#####################
+# VAE Flags #
+#####################
+flags.DEFINE_boolean(
+    'kl_loss', True,
+    'Whether or not using kl_loss in vae')
+flags.DEFINE_boolean(
+    'feat_loss', True,
+    'Whether or not using feat_loss in vae')
+flags.DEFINE_boolean(
+    'disc_loss', True,
+    'Whether or not using disc_loss in vae')
+
+flags.DEFINE_boolean(
+    'train_enc', True,
+    'Whether or not train train_enc in vae')
+flags.DEFINE_boolean(
+    'train_gen', True,
+    'Whether or not train train_enc in vae')
+flags.DEFINE_boolean(
+    'train_disc', True,
+    'Whether or not train train_enc in vae')
+
 #####################
 # Fine-Tuning Flags #
 #####################
@@ -124,46 +149,12 @@ from tensorflow.python.ops import control_flow_ops
 
 slim = tf.contrib.slim
 
-from model.ani import Model
+from model.vae import Model
 
 height = 60
 width = 60
 dim = 3
 
-# def update_train_op():
-#   if discr_loss_ratio < 1e-1 and TRAIN_DIS:
-#     TRAIN_DIS = False
-#     TRAIN_GEN = True
-#   if discr_loss_ratio > 5e-1 and not TRAIN_DIS:
-#     TRAIN_DIS = True
-#     TRAIN_GEN = True
-#   if discr_loss_ratio > 1e1 and TRAIN_GEN:
-#     TRAIN_GEN = False
-#     TRAIN_DIS = True
-
-def _update_scope(model, TRAIN_GEN, TRAIN_DIS):
-  train_ops = [model.gen_loss,
-                model.recon_loss,
-                model.disc_acc, 
-                model.summary_op, 
-                model.learning_rate,
-                model.discr_loss_ratio,
-                model.other_loss]
-  if TRAIN_GEN and TRAIN_DIS:
-    train_ops += [model.update_disc_op,
-                 model.update_gen_op,
-                 model.update_enc_op]
-  elif TRAIN_GEN:
-
-    train_ops += [model.update_gen_op,
-                  model.update_enc_op]
-
-  elif TRAIN_DIS:
-
-    train_ops += [model.update_disc_op,
-                  model.update_enc_op]
-  
-  return train_ops
 
 def main(unused_argv):
 
@@ -182,11 +173,9 @@ def main(unused_argv):
 
     batch_sprites_holder = tf.placeholder(tf.float32, shape=(4, None, height, width, dim))
     batch_masks_holder = tf.placeholder(tf.float32, shape=(4, None,  height, width, 1))
-    model = Model(batch_sprites_holder, batch_masks_holder, global_step)
+    model = Model(batch_sprites_holder, batch_masks_holder, global_step, is_training=True)
+    model.Build()
 
-    model_val = Model(batch_sprites_holder, batch_masks_holder, global_step, reuse=True)
-
-       
     print('Constructing saver.')
     time_info = datetime.now().strftime('%Y-%m-%d-%H%M%S')
     base_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info)
@@ -228,6 +217,12 @@ def main(unused_argv):
 
     # Data loader
     loader = Loader()
+
+    # Record Z mean 
+    sample_z_mean = np.zeros((FLAGS.batch_size, model.z_mean.get_shape().as_list()[1]))
+    sample_z_stddev_log = np.zeros((FLAGS.batch_size, model.z_stddev_log.get_shape().as_list()[1]))
+    sample_step = 0
+
     print('Start Tranning')
     # Run training.
     for itr in range(0,FLAGS.num_iterations):
@@ -235,29 +230,54 @@ def main(unused_argv):
       # Running Training, accumunate grads before update
       batch_sprites, batch_masks = loader.next()
 
+
       if TRAIN_GEN and TRAIN_DIS:
-        gen_loss,recon_loss,disc_acc, \
-        summary_str, learning_rate, \
-        discr_loss_ratio,other_loss ,_,_,_ = sess.run(list(_update_scope(model,TRAIN_GEN, TRAIN_DIS)), 
-                                                              feed_dict ={
-                                                              batch_sprites_holder : batch_sprites, 
-                                                              batch_masks_holder: batch_masks})
+        _,_,_, \
+        kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
+        disc_real_acc, disc_pred_acc, learning_rate,\
+        summary_str, pred_comb, z_mean, z_stddev_log \
+        = sess.run([model.disc_update_ops, model.gen_update_ops, model.enc_update_ops,\
+                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
+                    model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
+                    model.summary_op, model.pred_comb, \
+                    model.z_mean, model.z_stddev_log],\
+                    feed_dict ={
+                    batch_sprites_holder : batch_sprites, 
+                    batch_masks_holder: batch_masks})
+        
       elif TRAIN_GEN:
-        gen_loss,recon_loss,disc_acc, \
-        summary_str, learning_rate, \
-        discr_loss_ratio, other_loss, _,_ = sess.run(list(_update_scope(model, TRAIN_GEN, TRAIN_DIS)), 
-                                                              feed_dict ={
-                                                              batch_sprites_holder : batch_sprites, 
-                                                              batch_masks_holder: batch_masks})
+        _,_, \
+        kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
+        disc_real_acc, disc_pred_acc, learning_rate,\
+        summary_str, pred_comb, z_mean, z_stddev_log \
+        = sess.run([model.gen_update_ops, model.enc_update_ops,\
+                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
+                    model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
+                    model.summary_op, model.pred_comb, \
+                    model.z_mean, model.z_stddev_log],\
+                    feed_dict ={
+                    batch_sprites_holder : batch_sprites, 
+                    batch_masks_holder: batch_masks})
+
       elif TRAIN_DIS:
-        gen_loss,recon_loss,disc_acc, \
-        summary_str, learning_rate,\
-        discr_loss_ratio, other_loss,_,_ = sess.run(list(_update_scope(model, TRAIN_GEN, TRAIN_DIS)), 
-                                                              feed_dict ={
-                                                              batch_sprites_holder : batch_sprites, 
-                                                              batch_masks_holder: batch_masks})
-      # Modify training scope  
-      # update_train_op()
+        _,_, \
+        kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
+        disc_real_acc, disc_pred_acc, learning_rate,\
+        summary_str, pred_comb, z_mean, z_stddev_log \
+        = sess.run([model.disc_update_ops, model.enc_update_ops,\
+                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
+                    model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
+                    model.summary_op, model.pred_comb, \
+                    model.z_mean, model.z_stddev_log],\
+                    feed_dict ={
+                    batch_sprites_holder : batch_sprites, 
+                    batch_masks_holder: batch_masks})
+
+      sample_z_mean += z_mean
+      sample_z_stddev_log += z_stddev_log
+      sample_step += 1
+
+      # Modify training scope, in order to prevent encoder overfitting  
       if discr_loss_ratio < 1e-1 and TRAIN_DIS:
         TRAIN_DIS = False
         TRAIN_GEN = True
@@ -269,53 +289,51 @@ def main(unused_argv):
         TRAIN_DIS = True
 
       if itr % FLAGS.print_interval == 0:
-        log_str = ('In {itr}, T_Loss {gen_loss}, Re_Loss {recon_loss}, '\
-                    'Dis_Loss {disc_real_loss}, F_loss {disc_pred_loss} , Di_gen {disc_gen_loss}, Feat {feat_loss} '\
-                    'LRate {learning_rate},  '\
-                    'Disc_Re_acc {real_acc}, Fa_acc {fake_acc}, '\
+        log_str = ('In {itr}, T_Loss {loss}, Re_Loss {recon_loss}, Kl_loss {kl_loss}'\
+                    'Dis_Loss {disc_loss}, Feat {feat_loss} '\
                     'dis_lo_ration {discr_loss_ratio}, '\
-                    'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, gen_loss=str(gen_loss), recon_loss=str(recon_loss),\
-                                                                                               learning_rate=str(learning_rate), real_acc=str(disc_acc[0]), fake_acc=str(disc_acc[1]),\
-                                                                                               discr_loss_ratio=str(discr_loss_ratio),\
-                                                                                               TRAIN_ENC=TRAIN_ENC, TRAIN_GEN=TRAIN_GEN, TRAIN_DIS=TRAIN_DIS,\
-                                                                                               disc_real_loss=str(other_loss[0]), disc_pred_loss=str(other_loss[1]),\
-                                                                                               disc_gen_loss=str(other_loss[2]), \
-                                                                                               feat_loss=str(other_loss[3]))
-
+                    'LRate {learning_rate},  '\
+                    'Disc_Re_acc {disc_real_acc}, pred_acc {disc_pred_acc}, '\
+                    'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, kl_loss=str(kl_loss), loss=str(loss), recon_loss=str(recon_loss),\
+                                                                                   learning_rate=str(learning_rate), disc_real_acc=str(disc_real_acc), disc_pred_acc=str(disc_pred_acc),\
+                                                                                   discr_loss_ratio=str(discr_loss_ratio),\
+                                                                                   TRAIN_ENC=TRAIN_ENC, TRAIN_GEN=TRAIN_GEN, TRAIN_DIS=TRAIN_DIS,\
+                                                                                   disc_loss=str(disc_loss),\
+                                                                                   feat_loss=str(feat_loss))
+        
         tf.logging.info(log_str)
 
       if (itr) % FLAGS.VAL_INTERVAL ==  FLAGS.val_start:
         print('Running Validation Now')
+
+        # Sampled z is used for eval.
+        # It seems 10k is better than 1k. Maybe try 100k next?
+        with tf.gfile.Open(os.path.join(base_dir, 'z_mean.npy'), 'w') as f:
+          np.save(f, sample_z_mean / sample_step)
+        with tf.gfile.Open(
+            os.path.join(base_dir, 'z_stddev_log.npy'), 'w') as f:
+          np.save(f, sample_z_stddev_log / sample_step)
+
         for val_itr in range(FLAGS.val_iterations):
-          batch_sprites_val, batch_masks_val = loader.next_val()
-
-          # import pdb
-          # pdb.set_trace()
-
-          val_cost, summary_str, predictions, pred_comb = sess.run([model_val.recon_loss, 
-                                                                    model_val.summary_op, 
-                                                                    model_val.predict, 
-                                                                    model_val.pred_comb], 
-                                                                    feed_dict ={
-                                                                    batch_sprites_holder : batch_sprites_val, 
-                                                                    batch_masks_holder: batch_masks_val})
+          kl_loss, loss, pred_comb, pred_sprites = sess.run([model.kl_loss,\
+                            model.loss, model.pred_comb, model.pred_sprites],\
+                            feed_dict ={
+                              batch_sprites_holder : batch_sprites, 
+                              batch_masks_holder: batch_masks,
+                              model.z_mean: sample_z_mean / sample_step,
+                              model.z_stddev_log: sample_z_stddev_log / sample_step})
 
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
-                            + ', Cost ' + str(val_cost))
+                            + ', Total Loss ' + str(loss) + ', kl_loss ' + str(kl_loss))
 
-          mrg_img = merge(zip(*[batch_sprites_val[0], batch_sprites_val[1], batch_sprites_val[2], batch_sprites_val[3], predictions[0], pred_comb]))
+          mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], pred_sprites, pred_comb]))
           path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
           imsave(path, mrg_img)
-        
-        # save the last image
-        # for img_id, img in enumerate(predictions[0]):
-        #   path = os.path.join(gif_dir, 'pre_' + str(itr) + '_' + str(img_id)+'.png')
-        #   imsave(path, img)
 
-        # for img_id, img in enumerate(batch_sprites_val[3]):
-        #   path = os.path.join(gif_dir, 'rel_' + str(itr) + '_' + str(img_id)+'.png')
-        #   imsave(path, img)
+        sample_z_mean = np.zeros((FLAGS.batch_size, model.z_mean.get_shape().as_list()[1]))
+        sample_z_stddev_log = np.zeros((FLAGS.batch_size, model.z_stddev_log.get_shape().as_list()[1]))
+        sample_step = 0
 
       if (itr) % FLAGS.SAVE_INTERVAL == FLAGS.SAVE_INTERVAL-20:
         tf.logging.info('Saving model.')
@@ -327,18 +345,6 @@ def main(unused_argv):
     tf.logging.info('Saving model.')
     saver.save(sess, os.path.join(os.path.expanduser(saver_dir), 'model'))
     tf.logging.info('Training complete')
-    #tf.logging.flush()
-    ## Final Validation
-    # print('Running Final Validation Now')
-    # val_acc = []
-    # for val_itr in range(FLAGS.test_images):
-    #   acc = sess.run([val_model.accuracy])
-    #   val_acc.append(acc)
-    #   if val_itr % 10 == 0:
-    #     tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', acc ' + str(acc) + ' , Accuracy ' + str(np.mean(val_acc)))
-    # tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) + ', Accuracy ' + str(np.mean(val_acc)))
-
-
 
 if __name__ == '__main__':
   app.run()
