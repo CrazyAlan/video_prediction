@@ -323,14 +323,18 @@ def main(unused_argv):
             os.path.join(base_dir, 'z_stddev_log.npy'), 'w') as f:
           np.save(f, sample_z_stddev_log / sample_step)
 
+                
+        sample_z_mean = np.tile(np.mean(sample_z_mean / sample_step, axis=0),(FLAGS.batch_size,1))
+        sample_z_stddev_log = np.tile(np.mean(sample_z_stddev_log / sample_step, axis=0),(FLAGS.batch_size,1))
+
         for val_itr in range(FLAGS.val_iterations):
           kl_loss, loss, pred_comb, pred_sprites = sess.run([model.kl_loss,\
                             model.loss, model.pred_comb, model.pred_sprites],\
                             feed_dict ={
                               batch_sprites_holder : batch_sprites, 
                               batch_masks_holder: batch_masks,
-                              model.z_mean: sample_z_mean / sample_step,
-                              model.z_stddev_log: sample_z_stddev_log / sample_step})
+                              model.z_mean: sample_z_mean,
+                              model.z_stddev_log: sample_z_stddev_log})
 
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
@@ -339,6 +343,7 @@ def main(unused_argv):
           mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], pred_sprites, pred_comb]))
           path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
           imsave(path, mrg_img)
+
 
         sample_z_mean = np.zeros((FLAGS.batch_size, model.z_mean.get_shape().as_list()[1]))
         sample_z_stddev_log = np.zeros((FLAGS.batch_size, model.z_stddev_log.get_shape().as_list()[1]))

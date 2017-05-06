@@ -138,8 +138,8 @@ def inc_info_enc(inc_info,
         with slim.arg_scope([slim.fully_connected],
             outputs_collections=end_points_collection): 
 
-            net = slim.fully_connected(inc_info, 512, scope='fc1')
-            net = slim.fully_connected(net, 512, scope='fc2')
+            net = slim.fully_connected(inc_info, 1024, scope='fc1')
+            net = slim.fully_connected(net, 1024, scope='fc2')
             end_points = slim.utils.convert_collection_to_dict(end_points_collection)
 
             return net, end_points
@@ -153,7 +153,7 @@ def inc_info_dec(hid,
         with slim.arg_scope([slim.fully_connected],
             outputs_collections=end_points_collection): 
 
-            net = slim.fully_connected(hid, 512, scope='fc1')
+            net = slim.fully_connected(hid, 1024, scope='fc1')
             net = slim.fully_connected(net, 1024, scope='fc2')
             
             end_points = slim.utils.convert_collection_to_dict(end_points_collection)
