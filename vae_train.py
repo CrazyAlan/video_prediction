@@ -121,10 +121,14 @@ flags.DEFINE_boolean(
     'Whether or not train train_enc in vae')
 flags.DEFINE_boolean(
     'train_gen', True,
-    'Whether or not train train_enc in vae')
+    'Whether or not train train_gen in vae')
 flags.DEFINE_boolean(
     'train_disc', True,
-    'Whether or not train train_enc in vae')
+    'Whether or not train train_disc in vae')
+
+flags.DEFINE_boolean(
+    'train_vae_inc', True,
+    'Whether or not train train_vae_inc in vae')
 
 #####################
 # Fine-Tuning Flags #
@@ -237,11 +241,11 @@ def main(unused_argv):
 
 
       if TRAIN_GEN and TRAIN_DIS:
-        _,_,_, \
+        _,_,_,_, \
         kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
         disc_real_acc, disc_pred_acc, learning_rate,\
         summary_str, pred_comb, z_mean, z_stddev_log \
-        = sess.run([model.disc_update_ops, model.gen_update_ops, model.enc_update_ops,\
+        = sess.run([model.disc_update_ops, model.gen_update_ops, model.enc_update_ops, model.vae_inc_update_ops,\
                     model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
                     model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
                     model.summary_op, model.pred_comb, \
@@ -251,11 +255,11 @@ def main(unused_argv):
                     batch_masks_holder: batch_masks})
         
       elif TRAIN_GEN:
-        _,_, \
+        _,_,_, \
         kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
         disc_real_acc, disc_pred_acc, learning_rate,\
         summary_str, pred_comb, z_mean, z_stddev_log \
-        = sess.run([model.gen_update_ops, model.enc_update_ops,\
+        = sess.run([model.gen_update_ops, model.enc_update_ops, model.vae_inc_update_ops,\
                     model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
                     model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
                     model.summary_op, model.pred_comb, \
@@ -265,11 +269,11 @@ def main(unused_argv):
                     batch_masks_holder: batch_masks})
 
       elif TRAIN_DIS:
-        _,_, \
+        _,_,_, \
         kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
         disc_real_acc, disc_pred_acc, learning_rate,\
         summary_str, pred_comb, z_mean, z_stddev_log \
-        = sess.run([model.disc_update_ops, model.enc_update_ops,\
+        = sess.run([model.disc_update_ops, model.enc_update_ops,model.vae_inc_update_ops,\
                     model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
                     model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
                     model.summary_op, model.pred_comb, \

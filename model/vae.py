@@ -182,7 +182,7 @@ class Model(object):
 
       inc = self._BuildAnalogyInc()
       # Add the increasing information to log
-      tf.summary.histogram('inc info', inc)
+      tf.summary.histogram('inc_info', inc)
       
       encoded_image_info = self.ref
       decoded_image_info = encoded_image_info + inc 
@@ -234,8 +234,7 @@ class Model(object):
         self.enc_update_ops = tf.no_op(name='enc_train')
 
       if FLAGS.train_gen:
-        gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_net,inc_info_enc,inc_info_dec').format(model=FLAGS.model)
-
+        gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_net,{model}_inc_info_enc,{model}_inc_info_dec').format(model=FLAGS.model)
         gen_var = _get_variables_to_train_with_option(option=gen_scope)
         gen_grads = opt.compute_gradients(self.loss, gen_var)
         self.gen_update_ops = opt.apply_gradients(gen_grads, global_step=global_step)
@@ -244,9 +243,19 @@ class Model(object):
       else:
         self.gen_update_ops = tf.no_op(name='gen_train')
 
+      if FLAGS.train_vae_inc:
+        vae_inc_scope = ('{model}_inc_info_enc,{model}_inc_info_dec').format(model=FLAGS.model)
+        vae_inc_var = _get_variables_to_train_with_option(option=vae_inc_scope)
+        vae_inc_grads = opt.compute_gradients(self.loss, vae_inc_var)
+        self.vae_inc_update_ops = opt.apply_gradients(vae_inc_grads)
+        # keep grads hist
+        self._grad_hist(vae_inc_grads)
+      else:
+        self.vae_inc_update_ops = tf.no_op(name='inc_info_train')
+
       if FLAGS.train_disc:
         disc_var = _get_variables_to_train_with_option(option=FLAGS.model+'_disc')
-        disc_grads = opt.compute_gradients(self.loss, disc_var)
+        disc_grads = opt.compute_gradients(self.disc_loss, disc_var)
         self.disc_update_ops = opt.apply_gradients(disc_grads)
         # keep grads hist
         self._grad_hist(disc_grads)
@@ -326,13 +335,9 @@ class Model(object):
     self.ref, self.ref_endpoints = network.enc(self.batch_sprites[0], collection_name='ref')    
     self.out, self.out_endpoints = network.enc(self.batch_sprites[1], collection_name='out', reuse=True)
 
-    inc_info = network.ana_inc(self.out, self.ref, self.out, option='Deep')
-
-    with tf.variable_scope('inc_info_enc'):   
-        net = slim.fully_connected(inc_info, 512, scope='fc1')
-        net = slim.fully_connected(net, 512, scope='fc2')       
+    inc_info = network.ana_inc(self.out, self.ref, self.out, option='Deep')     
     
-    z = net
+    z, _ = network.inc_info_enc(inc_info)
 
     self.z_mean, self.z_stddev_log = tf.split(
         axis=1, num_or_size_splits=2, value=z)
@@ -345,9 +350,7 @@ class Model(object):
         [FLAGS.batch_size, self.z_mean.get_shape().as_list()[1]], 0, 1, dtype=tf.float32)
     hid =  self.z_mean + tf.multiply(self.z_stddev, epsilon)
 
-    with tf.variable_scope('inc_info_dec'):
-        net = slim.fully_connected(hid, 512, scope='fc1')
-        net = slim.fully_connected(net, 1024, scope='fc2')
+    net, _ = network.inc_info_dec(hid)
 
     return net
 
