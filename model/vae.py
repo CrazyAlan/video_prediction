@@ -286,6 +286,7 @@ class Model(object):
     self.disc_loss = 0
     self.disc_gen_loss = 0
 
+
     with tf.variable_scope('loss'):
       self.recon_loss = self.cost_con(self.batch_sprites[1],
                                  self.batch_masks[1],
@@ -297,7 +298,6 @@ class Model(object):
             tf.square(self.z_mean) + tf.square(self.z_stddev) -
             2 * self.z_stddev_log - 1))
         tf.summary.scalar('kl_loss', self.kl_loss)
-        self.loss += self.kl_loss
 
       if FLAGS.feat_loss:
         self.feat_loss = tf.nn.l2_loss(self.out_endpoints[self.out_endpoints.keys()[2]] \
@@ -310,7 +310,7 @@ class Model(object):
         self.disc_gen_loss, _ = _soft_loss(1, self.pred_label)
         self.discr_loss_ratio = (disc_real_loss + disc_pred_loss) / self.disc_gen_loss
       
-      self.loss = FLAGS.lambda_img*self.recon_loss +  FLAGS.lambda_adv*self.disc_gen_loss + FLAGS.lambda_feat*self.feat_loss
+      self.loss = FLAGS.lambda_img*self.recon_loss +  FLAGS.lambda_adv*self.disc_gen_loss + FLAGS.lambda_feat*self.feat_loss + self.kl_loss
         
       tf.summary.scalar('loss', self.loss)
 

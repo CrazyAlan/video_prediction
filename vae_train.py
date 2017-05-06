@@ -72,7 +72,7 @@ flags.DEFINE_float('batch_norm_decay', 0.997,
 flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
-flags.DEFINE_float('lambda_img', 2e-3,
+flags.DEFINE_float('lambda_img', 1e-2,
                    'image reconstruction loss percentage')
 flags.DEFINE_float('lambda_adv', 10,
                    'adversrial loss percentage')
