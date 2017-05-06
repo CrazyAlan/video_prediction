@@ -181,6 +181,8 @@ class Model(object):
     with slim.arg_scope(arg_scope):
 
       inc = self._BuildAnalogyInc()
+      # Add the increasing information to log
+      tf.summary.histogram('inc info', inc)
       
       encoded_image_info = self.ref
       decoded_image_info = encoded_image_info + inc 
@@ -200,7 +202,7 @@ class Model(object):
     self.summary_op = tf.summary.merge_all()
     self.init_from_checkpoint = _get_init_fn()
 
-  def _BuildTrainOp(self, global_step, optimizer, learning_rate, moving_average_decay, log_histograms=True):
+  def _BuildTrainOp(self, global_step, optimizer, learning_rate, moving_average_decay):
     loss_averages_op = _add_loss_summaries(self.loss)
     
     # Compute gradients.
@@ -226,6 +228,8 @@ class Model(object):
         enc_var = _get_variables_to_train_with_option(option=FLAGS.model+'_enc')
         enc_grads = opt.compute_gradients(self.loss, enc_var)
         self.enc_update_ops = opt.apply_gradients(enc_grads)
+        # keep grads histogram
+        self._grad_hist(enc_grads)
       else:
         self.enc_update_ops = tf.no_op(name='enc_train')
 
@@ -235,6 +239,8 @@ class Model(object):
         gen_var = _get_variables_to_train_with_option(option=gen_scope)
         gen_grads = opt.compute_gradients(self.loss, gen_var)
         self.gen_update_ops = opt.apply_gradients(gen_grads, global_step=global_step)
+        # keep grads histgram
+        self._grad_hist(gen_grads)
       else:
         self.gen_update_ops = tf.no_op(name='gen_train')
 
@@ -242,19 +248,23 @@ class Model(object):
         disc_var = _get_variables_to_train_with_option(option=FLAGS.model+'_disc')
         disc_grads = opt.compute_gradients(self.loss, disc_var)
         self.disc_update_ops = opt.apply_gradients(disc_grads)
+        # keep grads hist
+        self._grad_hist(disc_grads)
       else:
         self.disc_update_ops = tf.no_op(name='disc_train')
 
     # Add histograms for trainable variables.
-    if log_histograms:
+    if FLAGS.log_histograms:
       for var in tf.trainable_variables():
         tf.summary.histogram(var.op.name, var)
-   
-    # # Add histograms for gradients.
-    # if log_histograms:
-    #   for grad, var in grads:
-    #     if grad is not None:
-    #       tf.summary.histogram(var.op.name + '/gradients', grad)
+  
+  def _grad_hist(sefl, grads):
+      
+    # Add histograms for gradients.
+    if FLAGS.log_histograms:
+      for grad, var in grads:
+        if grad is not None:
+          tf.summary.histogram(var.op.name + '/gradients', grad)
 
   def _BuildLoss(self):
     # 1. reconstr_loss seems doesn't do better than l2 loss.
@@ -323,9 +333,13 @@ class Model(object):
         net = slim.fully_connected(net, 512, scope='fc2')       
     
     z = net
+
     self.z_mean, self.z_stddev_log = tf.split(
         axis=1, num_or_size_splits=2, value=z)
     self.z_stddev = tf.exp(self.z_stddev_log)
+
+    tf.summary.histogram('z_mean', self.z_mean)
+    tf.summary.histogram('z_stddev', self.z_stddev)
 
     epsilon = tf.random_normal(
         [FLAGS.batch_size, self.z_mean.get_shape().as_list()[1]], 0, 1, dtype=tf.float32)

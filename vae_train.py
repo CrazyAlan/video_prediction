@@ -110,6 +110,11 @@ flags.DEFINE_boolean(
 flags.DEFINE_boolean(
     'disc_loss', True,
     'Whether or not using disc_loss in vae')
+flags.DEFINE_boolean(
+    'log_histograms', True,
+    'Whether or not log the intermediate information')
+
+
 
 flags.DEFINE_boolean(
     'train_enc', True,
