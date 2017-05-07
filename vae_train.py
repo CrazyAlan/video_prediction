@@ -72,7 +72,7 @@ flags.DEFINE_float('batch_norm_decay', 0.997,
 flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
-flags.DEFINE_float('lambda_img', 2e-3,
+flags.DEFINE_float('lambda_img', 1e-2,
                    'image reconstruction loss percentage')
 flags.DEFINE_float('lambda_adv', 10,
                    'adversrial loss percentage')
@@ -298,10 +298,10 @@ def main(unused_argv):
         TRAIN_DIS = True
 
       if itr % FLAGS.print_interval == 0:
-        log_str = ('In {itr}, T_Loss {loss}, Re_Loss {recon_loss}, Kl_loss {kl_loss}'\
-                    'Dis_Loss {disc_loss}, Feat {feat_loss} '\
+        log_str = ('In {itr}, T_Loss {loss}, Re_Loss {recon_loss}, Kl_loss {kl_loss}, '\
+                    'Dis_Loss {disc_loss}, Feat {feat_loss}, '\
                     'dis_lo_ration {discr_loss_ratio}, '\
-                    'LRate {learning_rate},  '\
+                    'LRate {learning_rate}, '\
                     'Disc_Re_acc {disc_real_acc}, pred_acc {disc_pred_acc}, '\
                     'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, kl_loss=str(kl_loss), loss=str(loss), recon_loss=str(recon_loss),\
                                                                                    learning_rate=str(learning_rate), disc_real_acc=str(disc_real_acc), disc_pred_acc=str(disc_pred_acc),\
@@ -323,14 +323,18 @@ def main(unused_argv):
             os.path.join(base_dir, 'z_stddev_log.npy'), 'w') as f:
           np.save(f, sample_z_stddev_log / sample_step)
 
+                
+        sample_z_mean = np.tile(np.mean(sample_z_mean / sample_step, axis=0),(FLAGS.batch_size,1))
+        sample_z_stddev_log = np.tile(np.mean(sample_z_stddev_log / sample_step, axis=0),(FLAGS.batch_size,1))
+
         for val_itr in range(FLAGS.val_iterations):
           kl_loss, loss, pred_comb, pred_sprites = sess.run([model.kl_loss,\
                             model.loss, model.pred_comb, model.pred_sprites],\
                             feed_dict ={
                               batch_sprites_holder : batch_sprites, 
                               batch_masks_holder: batch_masks,
-                              model.z_mean: sample_z_mean / sample_step,
-                              model.z_stddev_log: sample_z_stddev_log / sample_step})
+                              model.z_mean: sample_z_mean,
+                              model.z_stddev_log: sample_z_stddev_log})
 
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
@@ -339,6 +343,7 @@ def main(unused_argv):
           mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], pred_sprites, pred_comb]))
           path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
           imsave(path, mrg_img)
+
 
         sample_z_mean = np.zeros((FLAGS.batch_size, model.z_mean.get_shape().as_list()[1]))
         sample_z_stddev_log = np.zeros((FLAGS.batch_size, model.z_stddev_log.get_shape().as_list()[1]))
