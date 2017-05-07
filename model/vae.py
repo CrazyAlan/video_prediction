@@ -184,7 +184,7 @@ class Model(object):
       # Add the increasing information to log
       tf.summary.histogram('inc_info', inc)
       
-      encoded_image_info = self.ref
+      encoded_image_info = self.query
       decoded_image_info = encoded_image_info + inc 
       self._BuildImageDecoder(decoded_image_info)
       # Build Discriminator 
@@ -288,8 +288,8 @@ class Model(object):
 
 
     with tf.variable_scope('loss'):
-      self.recon_loss = self.cost_con(self.batch_sprites[1],
-                                 self.batch_masks[1],
+      self.recon_loss = self.cost_con(self.batch_sprites[3],
+                                 self.batch_masks[3],
                                  self.pred_sprites,
                                  self.pred_masks)
       
@@ -334,8 +334,10 @@ class Model(object):
     # Analogy encoder
     self.ref, self.ref_endpoints = network.enc(self.batch_sprites[0], collection_name='ref')    
     self.out, self.out_endpoints = network.enc(self.batch_sprites[1], collection_name='out', reuse=True)
+    self.query, self.query_endpoints = network.enc(self.batch_sprites[2], collection_name='query', reuse=True)
+    self.target, self.target_endpoints = network.enc(self.batch_sprites[3], collection_name='target', reuse=True)
 
-    inc_info = network.ana_inc(self.out, self.ref, self.out, option='Deep')     
+    inc_info = network.ana_inc(self.out, self.ref, self.query, option='Deep')     
     
     z, _ = network.inc_info_enc(inc_info)
 
@@ -362,12 +364,12 @@ class Model(object):
     self.pred_comb = tf.multiply(self.pred_masks, self.pred_sprites)
 
   def _BuildDisc(self):
-    self.real_label, _ = network.disc(self.out_endpoints[self.out_endpoints.keys()[2]],
-                                 self.batch_sprites[1])
+    self.real_label, _ = network.disc(self.target_endpoints[self.target_endpoints.keys()[2]],
+                                 self.batch_sprites[3])
 
     # Forward predicted image in encoder, to get the feat map
     self.out_pred, self.out_pred_endpoints = network.enc(self.pred_comb, collection_name='pred', reuse=True)
 
-    self.pred_label, _ = network.disc(self.out_endpoints[self.out_endpoints.keys()[2]],
+    self.pred_label, _ = network.disc(self.target_endpoints[self.target_endpoints.keys()[2]],
                                  self.pred_comb,
                                  reuse=True)

@@ -139,7 +139,7 @@ def inc_info_enc(inc_info,
             outputs_collections=end_points_collection): 
 
             net = slim.fully_connected(inc_info, 1024, scope='fc1')
-            net = slim.fully_connected(net, 1024, scope='fc2')
+            net = slim.fully_connected(net, 2048, scope='fc2')
             end_points = slim.utils.convert_collection_to_dict(end_points_collection)
 
             return net, end_points

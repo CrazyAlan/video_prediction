@@ -298,10 +298,10 @@ def main(unused_argv):
         TRAIN_DIS = True
 
       if itr % FLAGS.print_interval == 0:
-        log_str = ('In {itr}, T_Loss {loss}, Re_Loss {recon_loss}, Kl_loss {kl_loss}'\
-                    'Dis_Loss {disc_loss}, Feat {feat_loss} '\
+        log_str = ('In {itr}, T_Loss {loss}, Re_Loss {recon_loss}, Kl_loss {kl_loss}, '\
+                    'Dis_Loss {disc_loss}, Feat {feat_loss}, '\
                     'dis_lo_ration {discr_loss_ratio}, '\
-                    'LRate {learning_rate},  '\
+                    'LRate {learning_rate}, '\
                     'Disc_Re_acc {disc_real_acc}, pred_acc {disc_pred_acc}, '\
                     'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, kl_loss=str(kl_loss), loss=str(loss), recon_loss=str(recon_loss),\
                                                                                    learning_rate=str(learning_rate), disc_real_acc=str(disc_real_acc), disc_pred_acc=str(disc_pred_acc),\
