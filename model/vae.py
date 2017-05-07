@@ -160,6 +160,12 @@ def _get_init_fn():
       variables_to_restore,
       ignore_missing_vars=FLAGS.ignore_missing_vars)
 
+def discretized_logistic(mean, logscale, binsize=1 / 256.0, sample=None):
+    scale = tf.exp(logscale)
+    sample = (tf.floor(sample / binsize) * binsize - mean) / scale
+    logp = tf.log(tf.sigmoid(sample + binsize / scale) - tf.sigmoid(sample) + 1e-7)
+    return tf.reduce_sum(logp, [1, 2, 3])
+
 class Model(object):
 
   def __init__(self, batch_sprites, batch_masks, global_step, is_training):
@@ -169,7 +175,7 @@ class Model(object):
     self.batch_masks = batch_masks
     self.global_step = global_step
     self.is_training = is_training
-
+    self.z_stddevd = tf.get_variable("z_stddevd", initializer=tf.constant(0.0))
 
   def Build(self):
     # with tf.device('/gpu:0'):
@@ -293,6 +299,10 @@ class Model(object):
                                  self.pred_sprites,
                                  self.pred_masks)
       
+      # neg-log-likelihood 
+      self.discretized_loss = -discretized_logistic(self.pred_comb, self.z_stddevd, sample=self.batch_sprites[3])
+      self.discretized_loss = tf.reduce_mean(self.discretized_loss) 
+
       if FLAGS.kl_loss:
         self.kl_loss = (0.5 * tf.reduce_mean(
             tf.square(self.z_mean) + tf.square(self.z_stddev) -
@@ -310,7 +320,7 @@ class Model(object):
         self.disc_gen_loss, _ = _soft_loss(1, self.pred_label)
         self.discr_loss_ratio = (disc_real_loss + disc_pred_loss) / self.disc_gen_loss
       
-      self.loss = FLAGS.lambda_img*self.recon_loss +  FLAGS.lambda_adv*self.disc_gen_loss + FLAGS.lambda_feat*self.feat_loss + self.kl_loss
+      self.loss = FLAGS.lambda_img*self.recon_loss +  FLAGS.lambda_adv*self.disc_gen_loss + FLAGS.lambda_feat*self.feat_loss + self.kl_loss + self.discretized_loss
         
       tf.summary.scalar('loss', self.loss)
 
@@ -362,6 +372,10 @@ class Model(object):
     self.pred_sprites, _ = network.dec_rgb(decoded_image_info)
 
     self.pred_comb = tf.multiply(self.pred_masks, self.pred_sprites)
+
+    # clip to [0, 1]
+    self.pred_comb = tf.clip_by_value(self.pred_comb, 0 + 1 / 512., 1 - 1 / 512.)
+
 
   def _BuildDisc(self):
     self.real_label, _ = network.disc(self.target_endpoints[self.target_endpoints.keys()[2]],

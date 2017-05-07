@@ -72,7 +72,7 @@ flags.DEFINE_float('batch_norm_decay', 0.997,
 flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
-flags.DEFINE_float('lambda_img', 1e-2,
+flags.DEFINE_float('lambda_img', 1,
                    'image reconstruction loss percentage')
 flags.DEFINE_float('lambda_adv', 10,
                    'adversrial loss percentage')
@@ -242,11 +242,11 @@ def main(unused_argv):
 
       if TRAIN_GEN and TRAIN_DIS:
         _,_,_,_, \
-        kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
+        kl_loss, recon_loss, loss, feat_loss, disc_loss, discretized_loss, discr_loss_ratio,  \
         disc_real_acc, disc_pred_acc, learning_rate,\
         summary_str, pred_comb, z_mean, z_stddev_log \
         = sess.run([model.disc_update_ops, model.gen_update_ops, model.enc_update_ops, model.vae_inc_update_ops,\
-                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
+                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discretized_loss, model.discr_loss_ratio,\
                     model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
                     model.summary_op, model.pred_comb, \
                     model.z_mean, model.z_stddev_log],\
@@ -256,11 +256,11 @@ def main(unused_argv):
         
       elif TRAIN_GEN:
         _,_,_, \
-        kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
+        kl_loss, recon_loss, loss, feat_loss, disc_loss, discretized_loss, discr_loss_ratio, \
         disc_real_acc, disc_pred_acc, learning_rate,\
         summary_str, pred_comb, z_mean, z_stddev_log \
         = sess.run([model.gen_update_ops, model.enc_update_ops, model.vae_inc_update_ops,\
-                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
+                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discretized_loss, model.discr_loss_ratio,\
                     model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
                     model.summary_op, model.pred_comb, \
                     model.z_mean, model.z_stddev_log],\
@@ -270,11 +270,11 @@ def main(unused_argv):
 
       elif TRAIN_DIS:
         _,_,_, \
-        kl_loss, recon_loss, loss, feat_loss, disc_loss, discr_loss_ratio, \
+        kl_loss, recon_loss, loss, feat_loss, disc_loss, discretized_loss, discr_loss_ratio, \
         disc_real_acc, disc_pred_acc, learning_rate,\
         summary_str, pred_comb, z_mean, z_stddev_log \
         = sess.run([model.disc_update_ops, model.enc_update_ops,model.vae_inc_update_ops,\
-                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discr_loss_ratio,\
+                    model.kl_loss, model.recon_loss, model.loss, model.feat_loss, model.disc_loss, model.discretized_loss, model.discr_loss_ratio,\
                     model.disc_real_acc, model.disc_pred_acc, model.learning_rate,\
                     model.summary_op, model.pred_comb, \
                     model.z_mean, model.z_stddev_log],\
@@ -299,16 +299,16 @@ def main(unused_argv):
 
       if itr % FLAGS.print_interval == 0:
         log_str = ('In {itr}, T_Loss {loss}, Re_Loss {recon_loss}, Kl_loss {kl_loss}, '\
-                    'Dis_Loss {disc_loss}, Feat {feat_loss}, '\
+                    'Dis_Loss {disc_loss}, Feat {feat_loss}, DCRTZED_Loss {discretized_loss}, '\
                     'dis_lo_ration {discr_loss_ratio}, '\
                     'LRate {learning_rate}, '\
                     'Disc_Re_acc {disc_real_acc}, pred_acc {disc_pred_acc}, '\
-                    'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, kl_loss=str(kl_loss), loss=str(loss), recon_loss=str(recon_loss),\
+                    'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, kl_loss=str(kl_loss/10800), loss=str(loss), recon_loss=str(recon_loss),\
                                                                                    learning_rate=str(learning_rate), disc_real_acc=str(disc_real_acc), disc_pred_acc=str(disc_pred_acc),\
                                                                                    discr_loss_ratio=str(discr_loss_ratio),\
                                                                                    TRAIN_ENC=TRAIN_ENC, TRAIN_GEN=TRAIN_GEN, TRAIN_DIS=TRAIN_DIS,\
                                                                                    disc_loss=str(disc_loss),\
-                                                                                   feat_loss=str(feat_loss))
+                                                                                   feat_loss=str(feat_loss), discretized_loss=str(discretized_loss/10800))
         
         tf.logging.info(log_str)
 
@@ -335,6 +335,7 @@ def main(unused_argv):
                               batch_masks_holder: batch_masks,
                               model.z_mean: sample_z_mean,
                               model.z_stddev_log: sample_z_stddev_log})
+
 
           if val_itr % FLAGS.print_interval == 0:
             tf.logging.info('In Training Iteration ' + str(itr) + ',  In Val Iteration ' + str(val_itr) 
