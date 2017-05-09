@@ -74,7 +74,7 @@ flags.DEFINE_float('gpu_memory_fraction', 0.5,
 
 flags.DEFINE_float('lambda_img', 1,
                    'image reconstruction loss percentage')
-flags.DEFINE_float('lambda_adv', 10,
+flags.DEFINE_float('lambda_adv', 1,
                    'adversrial loss percentage')
 flags.DEFINE_float('lambda_feat', 0.01,
                    'feature loss percentage')

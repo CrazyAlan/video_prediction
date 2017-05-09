@@ -379,6 +379,7 @@ class Model(object):
     # clip to [0, 1]
     self.pred_comb = tf.clip_by_value(self.pred_comb, 0 + 1 / 512., 1 - 1 / 512.)
 
+    self.pred_sprites = tf.clip_by_value(self.pred_sprites, 0 + 1 / 512., 1 - 1 / 512.)
 
   def _BuildDisc(self):
     self.real_label, _ = network.disc(self.target_endpoints[self.target_endpoints.keys()[2]],
