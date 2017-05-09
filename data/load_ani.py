@@ -6,6 +6,7 @@ from time import gmtime, strftime
 from numpy.random import choice
 import h5py
 import hdf5storage
+import shutil
 
 from tensorflow.python.platform import flags
 
@@ -17,6 +18,17 @@ class Loader(object):
     def __init__(self):
         
         self.datadir = '/cs/vml4/xca64/github/visual-analogy-tensorflow/data';
+        # Copy data to local-scrath, if it doesn't exist
+        local_scratch_dir='/local-scratch/xca64/video_prediction/'
+        if not os.path.isdir(local_scratch_dir):
+            print('Copy data file to local-scratch')
+            #os.makedirs(local_scratch_dir)
+            shutil.copytree(self.datadir, local_scratch_dir)
+            self.datadir=local_scratch_dir
+        else:
+            print('File exist on local-scratch, dont need to copy')
+            self.datadir=local_scratch_dir
+        
         self.batch_size = 25
         self.width = 60
         self.height = 60
