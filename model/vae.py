@@ -238,12 +238,13 @@ class Model(object):
         self._grad_hist(enc_grads)
       else:
         self.enc_update_ops = tf.no_op(name='enc_train')
+      
 
       if FLAGS.train_gen:
-        gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_net,{model}_inc_info_enc,{model}_inc_info_dec,z_stddevd').format(model=FLAGS.model)
-        # import pdb
-        # pdb.set_trace()
-        
+        if FLAGS.train_inc:
+            gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_net,{model}_inc_info_enc,{model}_inc_info_dec,z_stddevd').format(model=FLAGS.model)
+        else:
+            gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_info_enc,{model}_inc_info_dec,z_stddevd').format(model=FLAGS.model)
         gen_var = _get_variables_to_train_with_option(option=gen_scope)
         gen_grads = opt.compute_gradients(self.loss, gen_var)
         self.gen_update_ops = opt.apply_gradients(gen_grads, global_step=global_step)

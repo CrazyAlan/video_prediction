@@ -72,7 +72,7 @@ flags.DEFINE_float('batch_norm_decay', 0.997,
 flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
-flags.DEFINE_float('lambda_img', 1,
+flags.DEFINE_float('lambda_img', 0,
                    'image reconstruction loss percentage')
 flags.DEFINE_float('lambda_adv', 1,
                    'adversrial loss percentage')
@@ -116,6 +116,9 @@ flags.DEFINE_boolean(
 
 
 
+flags.DEFINE_boolean(
+    'train_inc', True,
+    'Whether or not train train_inc in vae')
 flags.DEFINE_boolean(
     'train_enc', True,
     'Whether or not train train_enc in vae')
@@ -190,6 +193,7 @@ def main(unused_argv):
     base_dir = os.path.join(os.path.expanduser(FLAGS.output_dir), FLAGS.model, time_info)
     if not os.path.isdir(base_dir):
       os.makedirs(base_dir)
+      print('Write result into {base_dir}'.format(base_dir=base_dir))
 
     with open(os.path.join(base_dir, 'params.txt'), 'w') as f:
         for key, value in FLAGS.__flags.iteritems():
