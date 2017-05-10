@@ -311,6 +311,7 @@ class Model(object):
         self.kl_loss = (0.5 * tf.reduce_mean(
             tf.square(self.z_mean) + tf.square(self.z_stddev) -
             2 * self.z_stddev_log - 1))
+        self.kl_loss = tf.clip_by_value(self.kl_loss, 1e-9, 100)
         tf.summary.scalar('kl_loss', self.kl_loss)
 
       if FLAGS.feat_loss:
