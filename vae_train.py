@@ -9,6 +9,8 @@ from tensorflow.python.platform import flags
 from utils.img_saving import imsave
 from utils.img_saving import merge
 
+import shutil
+
 #export PYTHONPATH=/home/xca64/vml4/github/video_prediction:/home/xca64/vml4/github/video_prediction/slim
 
 # How often to record tensorboard summaries.
@@ -113,7 +115,9 @@ flags.DEFINE_boolean(
 flags.DEFINE_boolean(
     'log_histograms', True,
     'Whether or not log the intermediate information')
-
+flags.DEFINE_boolean(
+    'zip_source', False,
+    'Whether or not save the source folder into the output')
 
 
 flags.DEFINE_boolean(
@@ -194,6 +198,12 @@ def main(unused_argv):
     if not os.path.isdir(base_dir):
       os.makedirs(base_dir)
       print('Write result into {base_dir}'.format(base_dir=base_dir))
+      if FLAGS.zip_source:
+        print('Start Save source file to summary')
+        shutil.make_archive(base_dir+'/source', 'zip', \
+          '/home/xca64/vml4/github/video_prediction/')
+        print('Finish saving source file')
+        
 
     with open(os.path.join(base_dir, 'params.txt'), 'w') as f:
         for key, value in FLAGS.__flags.iteritems():
