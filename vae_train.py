@@ -116,7 +116,7 @@ flags.DEFINE_boolean(
     'log_histograms', True,
     'Whether or not log the intermediate information')
 flags.DEFINE_boolean(
-    'zip_source', False,
+    'zip_source', True,
     'Whether or not save the source folder into the output')
 
 
@@ -140,6 +140,10 @@ flags.DEFINE_boolean(
 #####################
 # Fine-Tuning Flags #
 #####################
+flags.DEFINE_string(
+    'notes', '',
+    'Notes for this training')
+
 flags.DEFINE_string(
     'checkpoint_path', None,
     'The path to a checkpoint from which to fine-tune.')
