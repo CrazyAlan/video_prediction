@@ -139,7 +139,7 @@ def _get_init_fn():
 
   # TODO(sguada) variables.filter_variables()
   variables_to_restore = []
-  for var in slim.get_model_variables():
+  for var in tf.trainable_variables():
     excluded = False
     for exclusion in exclusions:
       if var.op.name.startswith(exclusion):
@@ -154,7 +154,7 @@ def _get_init_fn():
     checkpoint_path = FLAGS.checkpoint_path
 
   tf.logging.info('Fine-tuning from %s' % checkpoint_path)
-  
+
   return slim.assign_from_checkpoint_fn(
       checkpoint_path,
       variables_to_restore,
