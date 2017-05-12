@@ -154,7 +154,7 @@ def _get_init_fn():
     checkpoint_path = FLAGS.checkpoint_path
 
   tf.logging.info('Fine-tuning from %s' % checkpoint_path)
-
+  
   return slim.assign_from_checkpoint_fn(
       checkpoint_path,
       variables_to_restore,
@@ -188,7 +188,7 @@ class Model(object):
 
       inc = self._BuildAnalogyInc()
       # Add the increasing information to log
-      tf.summary.histogram('inc_info', inc)
+      # tf.summary.histogram('inc_info', inc)
       
       encoded_image_info = self.query
       decoded_image_info = encoded_image_info + inc 
@@ -235,7 +235,7 @@ class Model(object):
         enc_grads = opt.compute_gradients(self.loss, enc_var)
         self.enc_update_ops = opt.apply_gradients(enc_grads)
         # keep grads histogram
-        self._grad_hist(enc_grads)
+        # self._grad_hist(enc_grads)
       else:
         self.enc_update_ops = tf.no_op(name='enc_train')
       
@@ -249,7 +249,7 @@ class Model(object):
         gen_grads = opt.compute_gradients(self.loss, gen_var)
         self.gen_update_ops = opt.apply_gradients(gen_grads, global_step=global_step)
         # keep grads histgram
-        self._grad_hist(gen_grads)
+        # self._grad_hist(gen_grads)
       else:
         self.gen_update_ops = tf.no_op(name='gen_train')
 
@@ -259,7 +259,7 @@ class Model(object):
         vae_inc_grads = opt.compute_gradients(self.loss, vae_inc_var)
         self.vae_inc_update_ops = opt.apply_gradients(vae_inc_grads)
         # keep grads hist
-        self._grad_hist(vae_inc_grads)
+        # self._grad_hist(vae_inc_grads)
       else:
         self.vae_inc_update_ops = tf.no_op(name='inc_info_train')
 
@@ -268,14 +268,14 @@ class Model(object):
         disc_grads = opt.compute_gradients(self.disc_loss, disc_var)
         self.disc_update_ops = opt.apply_gradients(disc_grads)
         # keep grads hist
-        self._grad_hist(disc_grads)
+        # self._grad_hist(disc_grads)
       else:
         self.disc_update_ops = tf.no_op(name='disc_train')
 
     # Add histograms for trainable variables.
-    if FLAGS.log_histograms:
-      for var in tf.trainable_variables():
-        tf.summary.histogram(var.op.name, var)
+    # if FLAGS.log_histograms:
+    #   for var in tf.trainable_variables():
+    #     tf.summary.histogram(var.op.name, var)
   
   def _grad_hist(sefl, grads):
       
@@ -303,15 +303,18 @@ class Model(object):
                                  self.pred_sprites,
                                  self.pred_masks)
       
+      tf.summary.scalar('recon_loss', self.recon_loss)
       # neg-log-likelihood 
       self.discretized_loss = -discretized_logistic(self.pred_comb, self.z_stddevd, sample=self.batch_sprites[3])
-      self.discretized_loss = tf.reduce_mean(self.discretized_loss) 
+      self.discretized_loss = tf.reduce_mean(self.discretized_loss)
+
+      tf.summary.scalar('discretized_loss', self.discretized_loss)
 
       if FLAGS.kl_loss:
         self.kl_loss = (0.5 * tf.reduce_mean(
             tf.square(self.z_mean) + tf.square(self.z_stddev) -
             2 * self.z_stddev_log - 1))
-        self.kl_loss = tf.clip_by_value(self.kl_loss, 1e-9, 100)
+        # self.kl_loss = tf.clip_by_value(self.kl_loss, 0, 10)
         tf.summary.scalar('kl_loss', self.kl_loss)
 
       if FLAGS.feat_loss:
@@ -327,7 +330,7 @@ class Model(object):
       
       self.loss = FLAGS.lambda_img*self.recon_loss +  FLAGS.lambda_adv*self.disc_gen_loss + FLAGS.lambda_feat*self.feat_loss + self.kl_loss + self.discretized_loss
         
-      tf.summary.scalar('loss', self.loss)
+      # tf.summary.scalar('loss', self.loss)
 
   def cost_con(self, X, M, Xt, Mt, masked=True):
     if masked:
@@ -360,8 +363,8 @@ class Model(object):
         axis=1, num_or_size_splits=2, value=z)
     self.z_stddev = tf.exp(self.z_stddev_log)
 
-    tf.summary.histogram('z_mean', self.z_mean)
-    tf.summary.histogram('z_stddev', self.z_stddev)
+    # tf.summary.histogram('z_mean', self.z_mean)
+    # tf.summary.histogram('z_stddev', self.z_stddev)
 
     epsilon = tf.random_normal(
         [FLAGS.batch_size, self.z_mean.get_shape().as_list()[1]], 0, 1, dtype=tf.float32)
