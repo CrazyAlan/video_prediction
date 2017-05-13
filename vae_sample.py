@@ -249,15 +249,15 @@ def main(unused_argv):
     # Run training.
     for val_itr in range(0,FLAGS.val_iterations):
 
-      batch_sprites, batch_masks = loader.next_val()
+      batch_sprites, batch_masks = loader.next_sample()
 
-      discretized_loss, recon_loss, pred_comb, pred_sprites = sess.run([model.discretized_loss,\
-                            model.recon_loss, model.pred_comb, model.pred_sprites],\
+      discretized_loss, recon_loss, pred_comb, pred_masks, pred_sprites = sess.run([model.discretized_loss,\
+                            model.recon_loss, model.pred_comb, model.pred_masks, model.pred_sprites],\
                             feed_dict ={
                               batch_sprites_holder : batch_sprites, 
                               batch_masks_holder: batch_masks,
-                              model.z_mean: np.zeros((FLAGS.batch_size, 1024)),
-                              model.z_stddev_log: np.zeros((FLAGS.batch_size, 1024))
+                              model.z_mean: np.zeros((FLAGS.batch_size, 32)),
+                              model.z_stddev_log: np.zeros((FLAGS.batch_size, 32))
                               })
 
 
@@ -265,7 +265,7 @@ def main(unused_argv):
                                                                                                                                 recon_loss=recon_loss,\
                                                                                                                                 discretized_loss=discretized_loss))
 
-      mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], pred_sprites, pred_comb]))
+      mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], pred_sprites, pred_comb, pred_masks]))
       path = os.path.join(gif_dir,  'sample'+ '_' + str(val_itr) +'.png')
       imsave(path, mrg_img)
 

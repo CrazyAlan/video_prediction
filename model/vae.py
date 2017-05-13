@@ -190,8 +190,8 @@ class Model(object):
       # Add the increasing information to log
       # tf.summary.histogram('inc_info', inc)
       
-      encoded_image_info = self.query
-      decoded_image_info = encoded_image_info + inc 
+      encoded_image_info = self.query + inc
+      decoded_image_info = encoded_image_info 
       self._BuildImageDecoder(decoded_image_info)
       # Build Discriminator 
       self._BuildDisc()
@@ -355,7 +355,7 @@ class Model(object):
     self.query, self.query_endpoints = network.enc(self.batch_sprites[2], collection_name='query', reuse=True)
     self.target, self.target_endpoints = network.enc(self.batch_sprites[3], collection_name='target', reuse=True)
 
-    inc_info = network.ana_inc(self.out, self.ref, self.query, option='Deep')     
+    inc_info = network.ana_inc(self.out, self.ref, self.query, option='Add')     
     
     z, _ = network.inc_info_enc(inc_info)
 

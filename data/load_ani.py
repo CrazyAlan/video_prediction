@@ -93,6 +93,34 @@ class Loader(object):
 
         return np.array(batch_sprites), np.array(batch_masks)
 
+    def _batch_file_sample(self, filenames):
+        # Running Training, accumunate grads before update
+        batch_sprites_dict_list = []
+        batch_masks_dict_list = []
+        for i in range(FLAGS.batch_size / self.batch_size):
+            _, batch_sprites_dict, batch_masks_dict = self.sample_analogy_add(filenames)
+            
+            
+            batch_sprites_dict_list.append(batch_sprites_dict)
+            batch_masks_dict_list.append(batch_masks_dict)
+
+        batch_sprites = []
+        batch_masks = []
+        for key in ['X1', 'X2', 'X3', 'X4']:
+            tmp_sprites = []
+            tmp_masks = []
+            for i in range(len(batch_sprites_dict_list)): 
+                if key=='X3':
+                    tmp_sprites += self.batch_size*[list(batch_sprites_dict_list[i][key][0])]
+                else:
+                    tmp_sprites += list(batch_sprites_dict_list[i][key])
+                tmp_masks += list(batch_masks_dict_list[i][key])
+            batch_sprites.append(tmp_sprites)
+            batch_masks.append(tmp_masks)
+
+        return np.array(batch_sprites), np.array(batch_masks)
+
+
     def next(self, set_option=None):
         # Running Training, accumunate grads before update
         return self._batch_file(self.trainfiles)
@@ -104,6 +132,14 @@ class Loader(object):
     def next_test(self, set_option=None):
         # Running Training, accumunate grads before update
         return self._batch_file(self.testfiles)
+
+    def next_sample(self, set_option=None):
+        # Running Training, accumunate grads before update
+        tmp = self.batch_size
+        self.batch_size = 5
+        result = self._batch_file_sample(self.valfiles)
+        self.batch_size = tmp
+        return result
 
     def sample_analogy_add(self, files, pars=None):
         batch_labels = {}
