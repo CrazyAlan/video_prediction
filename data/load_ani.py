@@ -179,10 +179,6 @@ class Loader(object):
 
         t1_idx = choice(range(np.shape(mask2)[1]), self.batch_size, replace=True)
         t2_idx = t1_idx[np.random.permutation(len(t1_idx))]
-        # import pdb
-        # pdb.set_trace()
-
-        t1_idx = np.zeros(self.batch_size, dtype=np.int)
 
         batch_sprites['X1'] = np.reshape(sprite1[:,t1_idx], (self.width, self.height, self.dim, len(t1_idx)), order='F')
         batch_sprites['X2'] = np.reshape(sprite1[:,t2_idx], (self.width, self.height, self.dim, len(t2_idx)), order='F')
