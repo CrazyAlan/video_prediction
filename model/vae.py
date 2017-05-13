@@ -40,6 +40,8 @@ if FLAGS.model == 'ana_sprite_3':
   network = ana_sprite_3
 
 
+                    
+
 def _add_loss_summaries(total_loss):
     """Add summaries for losses.
   
@@ -168,21 +170,22 @@ def discretized_logistic(mean, logscale, binsize=1 / 256.0, sample=None):
 
 class Model(object):
 
-  def __init__(self, batch_sprites, batch_masks, global_step, is_training):
+  def __init__(self, batch_sprites, batch_masks, global_step, learning_rate, is_training):
     """Constructor.
     """
     self.batch_sprites = batch_sprites
     self.batch_masks = batch_masks
     self.global_step = global_step
     self.is_training = is_training
+    self.learning_rate = learning_rate
     self.z_stddevd = tf.get_variable("z_stddevd", initializer=tf.constant(0.0))
 
   def Build(self):
     # with tf.device('/gpu:0'):
     arg_scope = network.arg_sco()
 
-    self.learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, self.global_step,
-                 FLAGS.decay_step, 0.1, staircase=True)
+    # self.learning_rate = tf.train.exponential_decay(FLAGS.learning_rate, self.global_step,
+    #              FLAGS.decay_step, 0.1, staircase=True)
 
     with slim.arg_scope(arg_scope):
 

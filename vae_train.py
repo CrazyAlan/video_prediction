@@ -91,8 +91,9 @@ flags.DEFINE_integer('SUMMARY_INTERVAL', 40, 'Save Interval')
 
 
 
-flags.DEFINE_float('learning_rate', 0.0002,
-                   'the base learning rate of the generator')
+flags.DEFINE_float('learning_rate', 0.001,
+                   'the base learning rate of the generator, if it is -1, then use schedule file')
+flags.DEFINE_string('learning_schedule_file', 'learning_rate_schedule.txt', 'file path')
 flags.DEFINE_float('lambda_rgb', 0,
                    'the base learning rate of the generator')
 flags.DEFINE_float('lambda_mask', 0.1,
@@ -175,6 +176,21 @@ height = 60
 width = 60
 dim = 3
 
+def get_learning_rate_from_file(filename, iterations):
+  with open(filename, 'r') as f:
+    for line in f.readlines():
+      line = line.split('#', 1)[0]
+      if line:
+        par = line.strip().split(':')
+        itr = int(par[0])
+        lr = float(par[1])
+        if itr <= iterations:
+          learning_rate = lr
+        else:
+          return learning_rate
+    # at last 
+    return learning_rate
+
 
 def main(unused_argv):
 
@@ -193,7 +209,9 @@ def main(unused_argv):
 
     batch_sprites_holder = tf.placeholder(tf.float32, shape=(4, None, height, width, dim))
     batch_masks_holder = tf.placeholder(tf.float32, shape=(4, None,  height, width, 1))
-    model = Model(batch_sprites_holder, batch_masks_holder, global_step, is_training=True)
+    learning_rate_placeholder = tf.placeholder(tf.float32, name='learning_rate')
+
+    model = Model(batch_sprites_holder, batch_masks_holder, global_step, learning_rate_placeholder, is_training=True)
     model.Build()
 
     print('Constructing saver.')
@@ -257,6 +275,12 @@ def main(unused_argv):
       # Running Training, accumunate grads before update
       batch_sprites, batch_masks = loader.next()
 
+      if FLAGS.learning_rate > 0:
+        lr = tf.train.exponential_decay(FLAGS.learning_rate, itr,
+                   FLAGS.decay_step, 0.1, staircase=True)
+      else:
+        lr = get_learning_rate_from_file(FLAGS.learning_schedule_file, itr)
+      
 
       if TRAIN_GEN and TRAIN_DIS:
         _,_,_,_, \
@@ -270,7 +294,8 @@ def main(unused_argv):
                     model.z_mean, model.z_stddev_log],\
                     feed_dict ={
                     batch_sprites_holder : batch_sprites, 
-                    batch_masks_holder: batch_masks})
+                    batch_masks_holder: batch_masks,
+                    learning_rate_placeholder: lr})
         
       elif TRAIN_GEN:
         _,_,_, \
@@ -284,7 +309,8 @@ def main(unused_argv):
                     model.z_mean, model.z_stddev_log],\
                     feed_dict ={
                     batch_sprites_holder : batch_sprites, 
-                    batch_masks_holder: batch_masks})
+                    batch_masks_holder: batch_masks,
+                    learning_rate_placeholder: lr})
 
       elif TRAIN_DIS:
         _,_,_, \
@@ -298,7 +324,8 @@ def main(unused_argv):
                     model.z_mean, model.z_stddev_log],\
                     feed_dict ={
                     batch_sprites_holder : batch_sprites, 
-                    batch_masks_holder: batch_masks})
+                    batch_masks_holder: batch_masks,
+                    learning_rate_placeholder: lr})
 
       # sample_z_mean += z_mean
       # sample_z_stddev_log += z_stddev_log
@@ -353,7 +380,8 @@ def main(unused_argv):
                             model.recon_loss, model.pred_comb, model.pred_sprites],\
                             feed_dict ={
                               batch_sprites_holder : batch_sprites, 
-                              batch_masks_holder: batch_masks})
+                              batch_masks_holder: batch_masks,
+                              learning_rate_placeholder: lr})
 
 
           if val_itr % FLAGS.print_interval == 0:
