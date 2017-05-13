@@ -74,7 +74,7 @@ flags.DEFINE_float('batch_norm_decay', 0.997,
 flags.DEFINE_float('gpu_memory_fraction', 0.5,
                    'gpu percentage')
 
-flags.DEFINE_float('lambda_img', 0,
+flags.DEFINE_float('lambda_img', 1,
                    'image reconstruction loss percentage')
 flags.DEFINE_float('lambda_adv', 1,
                    'adversrial loss percentage')
@@ -93,7 +93,7 @@ flags.DEFINE_integer('SUMMARY_INTERVAL', 40, 'Save Interval')
 
 flags.DEFINE_float('learning_rate', 0.0002,
                    'the base learning rate of the generator')
-flags.DEFINE_float('lambda_rgb', 1,
+flags.DEFINE_float('lambda_rgb', 0,
                    'the base learning rate of the generator')
 flags.DEFINE_float('lambda_mask', 0.1,
                    'the base learning rate of the generator')

@@ -355,7 +355,7 @@ class Model(object):
     self.query, self.query_endpoints = network.enc(self.batch_sprites[2], collection_name='query', reuse=True)
     self.target, self.target_endpoints = network.enc(self.batch_sprites[3], collection_name='target', reuse=True)
 
-    inc_info = network.ana_inc(self.out, self.ref, self.query, option='Add')     
+    inc_info = network.ana_inc(self.out, self.ref, self.query, option='Deep')     
     
     z, _ = network.inc_info_enc(inc_info)
 
