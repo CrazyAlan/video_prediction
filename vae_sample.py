@@ -193,7 +193,10 @@ def main(unused_argv):
 
     batch_sprites_holder = tf.placeholder(tf.float32, shape=(4, None, height, width, dim))
     batch_masks_holder = tf.placeholder(tf.float32, shape=(4, None,  height, width, 1))
-    model = Model(batch_sprites_holder, batch_masks_holder, global_step, is_training=True)
+    learning_rate_placeholder = tf.placeholder(tf.float32, name='learning_rate')
+
+    model = Model(batch_sprites_holder, batch_masks_holder, global_step, learning_rate_placeholder, is_training=True)
+
     model.Build()
 
     print('Constructing saver.')
@@ -257,7 +260,8 @@ def main(unused_argv):
                               batch_sprites_holder : batch_sprites, 
                               batch_masks_holder: batch_masks,
                               model.z_mean: np.zeros((FLAGS.batch_size, 32)),
-                              model.z_stddev_log: np.zeros((FLAGS.batch_size, 32))
+                              model.z_stddev_log: np.zeros((FLAGS.batch_size, 32)),
+                              learning_rate_placeholder: 0.0
                               })
 
 
