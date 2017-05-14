@@ -81,6 +81,8 @@ flags.DEFINE_float('lambda_adv', 1,
 flags.DEFINE_float('lambda_feat', 0.01,
                    'feature loss percentage')
 
+flags.DEFINE_float('lambda_disc_loss', 0.1,
+                   'the base learning rate of the discriminator')
 flags.DEFINE_integer('batch_size', 125, 'batch size for training')
 flags.DEFINE_integer('val_iterations', 5, 'batch size for training')
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
