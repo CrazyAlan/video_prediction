@@ -84,9 +84,9 @@ flags.DEFINE_float('lambda_feat', 0.01,
 flags.DEFINE_integer('batch_size', 125, 'batch size for training')
 flags.DEFINE_integer('val_iterations', 5, 'batch size for training')
 flags.DEFINE_integer('print_interval', 10, 'print_interval')
-flags.DEFINE_integer('VAL_INTERVAL', 2500, 'Validation Start')
+flags.DEFINE_integer('VAL_INTERVAL', 1200, 'Validation Start')
 flags.DEFINE_integer('val_start',FLAGS.VAL_INTERVAL/2 , 'Validation Start')
-flags.DEFINE_integer('SAVE_INTERVAL', 2500, 'Save Interval')
+flags.DEFINE_integer('SAVE_INTERVAL', 1200, 'Save Interval')
 flags.DEFINE_integer('SUMMARY_INTERVAL', 40, 'Save Interval')
 
 
@@ -98,6 +98,8 @@ flags.DEFINE_float('lambda_rgb', 0,
                    'the base learning rate of the generator')
 flags.DEFINE_float('lambda_mask', 0.1,
                    'the base learning rate of the generator')
+flags.DEFINE_float('lambda_disc_loss', 0.1,
+                   'the base learning rate of the discriminator')
 
 
 
@@ -280,7 +282,7 @@ def main(unused_argv):
                    FLAGS.decay_step, 0.1, staircase=True)
       else:
         lr = get_learning_rate_from_file(FLAGS.learning_schedule_file, itr)
-      
+
 
       if TRAIN_GEN and TRAIN_DIS:
         _,_,_,_, \
@@ -348,7 +350,7 @@ def main(unused_argv):
                     'dis_lo_ration {discr_loss_ratio}, '\
                     'LRate {learning_rate}, '\
                     'Disc_Re_acc {disc_real_acc}, pred_acc {disc_pred_acc}, '\
-                    'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, kl_loss=str(kl_loss/10800), loss=str(loss), recon_loss=str(recon_loss),\
+                    'Enc: {TRAIN_ENC}, Gen: {TRAIN_GEN}, Dis: {TRAIN_DIS}').format(itr=itr, kl_loss=str(kl_loss/10800), loss=str(loss), recon_loss=str(recon_loss/3600),\
                                                                                    learning_rate=str(learning_rate), disc_real_acc=str(disc_real_acc), disc_pred_acc=str(disc_pred_acc),\
                                                                                    discr_loss_ratio=str(discr_loss_ratio),\
                                                                                    TRAIN_ENC=TRAIN_ENC, TRAIN_GEN=TRAIN_GEN, TRAIN_DIS=TRAIN_DIS,\
@@ -376,8 +378,8 @@ def main(unused_argv):
 
           batch_sprites, batch_masks = loader.next_val()
 
-          discretized_loss, recon_loss, pred_comb, pred_sprites = sess.run([model.discretized_loss,\
-                            model.recon_loss, model.pred_comb, model.pred_sprites],\
+          discretized_loss, recon_loss, pred_comb, pred_masks, pred_sprites = sess.run([model.discretized_loss,\
+                            model.recon_loss, model.pred_comb, model.pred_masks, model.pred_sprites],\
                             feed_dict ={
                               batch_sprites_holder : batch_sprites, 
                               batch_masks_holder: batch_masks,
@@ -389,7 +391,7 @@ def main(unused_argv):
                                                                                                                                     recon_loss=recon_loss,\
                                                                                                                                     discretized_loss=discretized_loss))
 
-          mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], pred_sprites, pred_comb]))
+          mrg_img = merge(zip(*[batch_sprites[0], batch_sprites[1], batch_sprites[2], batch_sprites[3], pred_sprites, pred_comb, pred_masks]))
           path = os.path.join(gif_dir, str(itr) + '_' + 'val'+ '_' + str(val_itr) +'.png')
           imsave(path, mrg_img)
 

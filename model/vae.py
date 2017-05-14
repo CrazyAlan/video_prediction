@@ -39,6 +39,9 @@ if FLAGS.model == 'ana_sprite_3':
   from network import ana_sprite_3
   network = ana_sprite_3
 
+elif FLAGS.model == 'ana_sprite_4':
+  from network import ana_sprite_4
+  network = ana_sprite_4
 
                     
 
@@ -179,6 +182,7 @@ class Model(object):
     self.is_training = is_training
     self.learning_rate = learning_rate
     self.z_stddevd = tf.get_variable("z_stddevd", initializer=tf.constant(0.0))
+    self.z_stddevd_2 = tf.get_variable("z_stddevd_2", initializer=tf.constant(0.0))
 
   def Build(self):
     # with tf.device('/gpu:0'):
@@ -238,21 +242,21 @@ class Model(object):
         enc_grads = opt.compute_gradients(self.loss, enc_var)
         self.enc_update_ops = opt.apply_gradients(enc_grads)
         # keep grads histogram
-        # self._grad_hist(enc_grads)
+        self._grad_hist(enc_grads)
       else:
         self.enc_update_ops = tf.no_op(name='enc_train')
       
 
       if FLAGS.train_gen:
         if FLAGS.train_inc:
-            gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_net,{model}_inc_info_enc,{model}_inc_info_dec,z_stddevd').format(model=FLAGS.model)
+            gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_net,{model}_inc_info_enc,{model}_inc_info_dec,z_stddevd,z_stddevd_2').format(model=FLAGS.model)
         else:
-            gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_info_enc,{model}_inc_info_dec,z_stddevd').format(model=FLAGS.model)
+            gen_scope = ('{model}_dec_rgb,{model}_dec_mask,{model}_inc_info_enc,{model}_inc_info_dec,z_stddevd,z_stddevd_2').format(model=FLAGS.model)
         gen_var = _get_variables_to_train_with_option(option=gen_scope)
         gen_grads = opt.compute_gradients(self.loss, gen_var)
         self.gen_update_ops = opt.apply_gradients(gen_grads, global_step=global_step)
         # keep grads histgram
-        # self._grad_hist(gen_grads)
+        self._grad_hist(gen_grads)
       else:
         self.gen_update_ops = tf.no_op(name='gen_train')
 
@@ -262,7 +266,7 @@ class Model(object):
         vae_inc_grads = opt.compute_gradients(self.loss, vae_inc_var)
         self.vae_inc_update_ops = opt.apply_gradients(vae_inc_grads)
         # keep grads hist
-        # self._grad_hist(vae_inc_grads)
+        self._grad_hist(vae_inc_grads)
       else:
         self.vae_inc_update_ops = tf.no_op(name='inc_info_train')
 
@@ -271,16 +275,16 @@ class Model(object):
         disc_grads = opt.compute_gradients(self.disc_loss, disc_var)
         self.disc_update_ops = opt.apply_gradients(disc_grads)
         # keep grads hist
-        # self._grad_hist(disc_grads)
+        self._grad_hist(disc_grads)
       else:
         self.disc_update_ops = tf.no_op(name='disc_train')
 
     # Add histograms for trainable variables.
-    # if FLAGS.log_histograms:
-    #   for var in tf.trainable_variables():
-    #     tf.summary.histogram(var.op.name, var)
+    if FLAGS.log_histograms:
+      for var in tf.trainable_variables():
+        tf.summary.histogram(var.op.name, var)
   
-  def _grad_hist(sefl, grads):
+  def _grad_hist(self, grads):
       
     # Add histograms for gradients.
     if FLAGS.log_histograms:
@@ -301,11 +305,14 @@ class Model(object):
 
 
     with tf.variable_scope('loss'):
-      self.recon_loss = self.cost_con(self.batch_sprites[3],
-                                 self.batch_masks[3],
-                                 self.pred_sprites,
-                                 self.pred_masks)
+      # self.recon_loss = self.cost_con(self.batch_sprites[3],
+      #                            self.batch_masks[3],
+      #                            self.pred_sprites,
+      #                            self.pred_masks)
       
+      self.recon_loss = -discretized_logistic(self.pred_masks, self.z_stddevd_2, sample=self.batch_masks[3])
+      self.recon_loss = tf.reduce_mean(self.recon_loss)
+
       tf.summary.scalar('recon_loss', self.recon_loss)
       # neg-log-likelihood 
       self.discretized_loss = -discretized_logistic(self.pred_comb, self.z_stddevd, sample=self.batch_sprites[3])
@@ -318,6 +325,7 @@ class Model(object):
             tf.square(self.z_mean) + tf.square(self.z_stddev) -
             2 * self.z_stddev_log - 1)) + 1e-6
         # self.kl_loss = tf.clip_by_value(self.kl_loss, 0, 10)
+        self.learning_rate = tf.where(self.kl_loss > 10.0, 0.0, self.learning_rate)
 
         tf.summary.scalar('kl_loss', self.kl_loss)
 
@@ -325,16 +333,22 @@ class Model(object):
         self.feat_loss = tf.nn.l2_loss(self.out_endpoints[self.out_endpoints.keys()[2]] \
                                         - self.out_pred_endpoints[self.out_pred_endpoints.keys()[2]])
 
+        self.learning_rate = tf.where(self.feat_loss > 1e4, 0.0, self.learning_rate)
+        tf.summary.scalar('feat_loss', self.feat_loss)
+
       if FLAGS.disc_loss:
         disc_real_loss, self.disc_real_acc = _soft_loss(1, self.real_label)
         disc_pred_loss, self.disc_pred_acc = _soft_loss(0, self.pred_label)
         self.disc_loss =  disc_pred_loss + disc_real_loss
+        self.disc_loss = FLAGS.lambda_disc_loss*self.disc_loss
         self.disc_gen_loss, _ = _soft_loss(1, self.pred_label)
         self.discr_loss_ratio = (disc_real_loss + disc_pred_loss) / self.disc_gen_loss
-      
-      self.loss = FLAGS.lambda_img*self.recon_loss +  FLAGS.lambda_adv*self.disc_gen_loss + FLAGS.lambda_feat*self.feat_loss + self.kl_loss + self.discretized_loss
+        tf.summary.scalar('disc_loss', self.disc_loss)
+        tf.summary.scalar('disc_gen_loss', self.disc_gen_loss)
         
-      # tf.summary.scalar('loss', self.loss)
+      self.loss = FLAGS.lambda_mask*self.recon_loss +  FLAGS.lambda_adv*self.disc_gen_loss + FLAGS.lambda_feat*self.feat_loss + self.kl_loss + self.discretized_loss
+      # self.loss = self.recon_loss
+      # self.loss = FLAGS.lambda_mask*self.recon_loss + self.kl_loss + self.discretized_loss
 
   def cost_con(self, X, M, Xt, Mt, masked=True):
     if masked:
@@ -350,6 +364,15 @@ class Model(object):
     cost = cost_x*FLAGS.lambda_rgb + cost_m*FLAGS.lambda_mask
 
     return cost
+  def _mask_loss(self, M, Mt):
+    # import pdb
+    # pdb.set_trace()
+
+    cost = tf.nn.sigmoid_cross_entropy_with_logits(labels=M, logits=Mt)
+    # cost = tf.maximum(Mt, 0) - M*Mt + tf.log(1 + tf.exp(-tf.abs(Mt)))
+
+    return tf.reduce_sum(cost, [1, 2, 3])
+    # return tf.nn.l2_loss(M-Mt)
 
   def _BuildAnalogyInc(self):
     
@@ -362,6 +385,8 @@ class Model(object):
     inc_info = network.ana_inc(self.out, self.ref, self.query, option='Deep')     
     
     z, _ = network.inc_info_enc(inc_info)
+    # Put inc space as the hiddend space
+    # z = inc_info
 
     self.z_mean, self.z_stddev_log = tf.split(
         axis=1, num_or_size_splits=2, value=z)
@@ -381,14 +406,20 @@ class Model(object):
   def _BuildImageDecoder(self, decoded_image_info):
     """Decode the hidden into the predicted images and masks"""
     self.pred_masks, _ = network.dec_mask(decoded_image_info)
+    if FLAGS.log_histograms:
+      tf.summary.histogram('pred_masks', self.pred_masks)
+
     self.pred_sprites, _ = network.dec_rgb(decoded_image_info)
 
+    self.pred_sprites = tf.clip_by_value(self.pred_sprites, 0 + 1 / 512., 1 - 1 / 512.)
+    self.pred_masks = tf.clip_by_value(self.pred_masks, 0 + 1 / 512., 1 - 1 / 512.)
+
+    # masks sigmoid, it's in range[0,1]
     self.pred_comb = tf.multiply(self.pred_masks, self.pred_sprites)
 
     # clip to [0, 1]
     self.pred_comb = tf.clip_by_value(self.pred_comb, 0 + 1 / 512., 1 - 1 / 512.)
 
-    self.pred_sprites = tf.clip_by_value(self.pred_sprites, 0 + 1 / 512., 1 - 1 / 512.)
 
   def _BuildDisc(self):
     self.real_label, _ = network.disc(self.target_endpoints[self.target_endpoints.keys()[2]],
